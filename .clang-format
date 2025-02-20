@@ -1,0 +1,7 @@
+BasedOnStyle: Google         # 基於 Google 風格
+UseTab: Never                # 不使用 Tab，改用空格
+IndentWidth: 4               # 縮排 4 個空格
+TabWidth: 4                  # 設定 Tab 為 4 個空格（避免影響縮排）
+ColumnLimit: 120             # 120 字符後才換行
+BreakBeforeBraces: Attach    # `{` 跟著上一行（K&R 風格）
+PenaltyExcessCharacter: 1000 # 減少不必要的換行
