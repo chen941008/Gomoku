@@ -76,7 +76,9 @@ Node* MCTS::expansion(Node* node) {
     int index = 0;
     for (int i = 0; i < BOARD_SIZE; i++) {
         for (int j = 0; j < BOARD_SIZE; j++) {
-            if (node->board[i][j] == 0) {
+            if (getBit(node->boardBlack, {i, j}) || getBit(node->boardWhite, {i, j})) {
+                continue;
+            } else {
                 Node* newNode = new Node({i, j}, node);
                 node->children[index++] = newNode;
             }
@@ -103,16 +105,18 @@ void MCTS::backpropagation(Node* node, Node* endNode, bool isXTurn, double win) 
 int MCTS::playout(Node* node) {
     bool startTurn = node->isBlackTurn;
     bool currentTurn = startTurn;
-    int board[BOARD_SIZE][BOARD_SIZE] = {0};
+    uint64_t boardBlack[BITBOARD_COUNT];
+    uint64_t boardWhite[BITBOARD_COUNT];
+    std::copy(std::begin(node->boardBlack), std::end(node->boardBlack), std::begin(boardBlack));
+    std::copy(std::begin(node->boardWhite), std::end(node->boardWhite), std::begin(boardWhite));
     Position possibleMoves[MAX_CHILDREN];
     int count = 0;
     for (int i = 0; i < BOARD_SIZE; i++) {
         for (int j = 0; j < BOARD_SIZE; j++) {
-            if (node->board[i][j] == 0) {
-                possibleMoves[count++] = {i, j};
-            } else {
-                board[i][j] = node->board[i][j];
+            if (getBit(boardBlack, {i, j}) || getBit(boardWhite, {i, j})) {
+                continue;
             }
+            possibleMoves[count++] = {i, j};
         }
     }
     if (count == 0) {
@@ -128,12 +132,11 @@ int MCTS::playout(Node* node) {
         Position move = possibleMoves[i];
 
         if (currentTurn) {
-            board[move.x][move.y] = 1;
+            setBit(boardBlack, move);
         } else {
-            board[move.x][move.y] = 2;
+            setBit(boardWhite, move);
         }
-
-        if (Game::checkWin(board, move)) {
+        if (Game::checkWin(move, boardBlack, boardWhite, currentTurn)) {
             return (currentTurn == startTurn) ? 1 : -1;
         }
     }

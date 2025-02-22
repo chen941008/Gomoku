@@ -8,6 +8,9 @@ struct Position;
 enum aiMode { FIXED_SIMULATION_TIMES = 1, VARIABLE_SIMULATION_TIMES = 2 };
 
 class Game {
+   private:
+    static bool checkDirection(Position lastMove, Position direction, uint64_t* board);
+
    public:
     /**
      * @brief 遊戲的主邏輯控制函式
@@ -22,14 +25,14 @@ class Game {
      * @return true 如果當前玩家獲勝
      * @return false 如果當前玩家未獲勝
      */
-    static bool checkWin(int board[BOARD_SIZE][BOARD_SIZE], Position lastMove);
+    static bool checkWin(Position lastMove, uint64_t* boardBlack, uint64_t* boardWhite, bool isBlackTurn);
 
     /**
      * @brief 輸出棋盤的當前狀態
      *
      * @param board 棋盤的二維陣列表示
      */
-    static void printBoard(int board[BOARD_SIZE][BOARD_SIZE]);
+    static void printBoard(uint64_t* boardBlack, uint64_t* boardWhite);
     /**
      * @brief 遞迴生成 Tic-Tac-Toe (井字棋) 的完整遊戲樹。
      *

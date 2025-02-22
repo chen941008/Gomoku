@@ -20,7 +20,7 @@ int main() {
     */
     int gameTimes = 30;
     long long totalTime = 0;
-    ofstream outputFile("MVP.csv");
+    ofstream outputFile("bitboard.csv");
     if (!outputFile.is_open()) {
         cerr << "Error: Unable to open output file!" << endl;
         return 1;

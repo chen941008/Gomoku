@@ -6,13 +6,20 @@
 #include <array>
 #include <vector>
 using std::array;
-
-const int MAX_CHILDREN = 225;  ///< 每個節點最多的子節點數量（對應 15x15 棋盤）
+#define BITBOARD_COUNT ((BOARD_SIZE * BOARD_SIZE + 63) / 64)  // 計算需要多少個 uint64_t 來表示整個棋盤
+const int MAX_CHILDREN = 225;                                 ///< 每個節點最多的子節點數量（對應 15x15 棋盤）
 struct Position {
     int x;
     int y;
 };
-
+inline void setBit(uint64_t* bitboard, Position lastMove) {
+    int pos = lastMove.x * BOARD_SIZE + lastMove.y;
+    bitboard[pos / 64] |= 1ULL << (pos % 64);
+}
+inline bool getBit(uint64_t* bitboard, Position position) {
+    int pos = position.x * BOARD_SIZE + position.y;
+    return bitboard[pos / 64] & (1ULL << (pos % 64));
+}
 /**
  * @brief 表示遊戲節點的結構體，用於蒙特卡洛樹搜索 (MCTS)
  *
@@ -24,14 +31,15 @@ struct Position {
  * - `isXTurn` 記錄當前是否輪到 X 玩家
  */
 struct Node {
-    double wins;                        ///< 該節點的獲勝次數
-    int visits;                         ///< 該節點的訪問次數
-    int board[BOARD_SIZE][BOARD_SIZE];  ///< 棋盤狀態
-    bool isBlackTurn;                   ///< 是否是 Black玩家的回合
-    Node* parent;                       ///< 指向父節點的指標
-    Node* children[MAX_CHILDREN];       ///< 指向子節點的指標陣列
-    Position lastMove;                  ///< 最後一步的位置
-    bool isWin;                         ///< 是否是終局節點
+    double wins;                          ///< 該節點的獲勝次數
+    int visits;                           ///< 該節點的訪問次數
+    uint64_t boardBlack[BITBOARD_COUNT];  ///< 位棋盤 (bitboard) 表示棋盤狀態
+    uint64_t boardWhite[BITBOARD_COUNT];  ///< 位棋盤 (bitboard) 表示棋盤狀態
+    bool isBlackTurn;                     ///< 是否是 Black玩家的回合
+    Node* parent;                         ///< 指向父節點的指標
+    Node* children[MAX_CHILDREN];         ///< 指向子節點的指標陣列
+    Position lastMove;                    ///< 最後一步的位置
+    bool isWin;                           ///< 是否是終局節點
 
     /**
      * @brief 預設構造函數，初始化根節點
@@ -46,12 +54,8 @@ struct Node {
      */
     Node() : wins(0), visits(0), parent(nullptr), isBlackTurn(false), lastMove({-1, -1}), isWin(false) {
         // 初始化棋盤為全 0 (空棋盤)
-        for (int i = 0; i < BOARD_SIZE; ++i) {
-            for (int j = 0; j < BOARD_SIZE; ++j) {
-                board[i][j] = 0;
-            }
-        }
-
+        std::fill(std::begin(boardBlack), std::end(boardBlack), 0);
+        std::fill(std::begin(boardWhite), std::end(boardWhite), 0);
         // 初始化所有子節點為 nullptr
         std::fill(std::begin(children), std::end(children), nullptr);
     }
@@ -71,23 +75,14 @@ struct Node {
     Node(Position lastMove, Node* parent)
         : wins(0), visits(0), parent(parent), isBlackTurn(!parent->isBlackTurn), lastMove(lastMove) {
         // 繼承父節點的棋盤狀態
-        for (int i = 0; i < BOARD_SIZE; ++i) {
-            for (int j = 0; j < BOARD_SIZE; ++j) {
-                board[i][j] = parent->board[i][j];
-            }
-        }
+        std::copy(std::begin(parent->boardBlack), std::end(parent->boardBlack), std::begin(boardBlack));
+        std::copy(std::begin(parent->boardWhite), std::end(parent->boardWhite), std::begin(boardWhite));
 
-        // 根據當前玩家的回合更新棋盤
+        // 根據當前玩家，將落子位置標記到對應的棋盤
         if (isBlackTurn) {
-            // 假設對應的棋盤位置已被更新
-            board[lastMove.x][lastMove.y] = 1;  // 這裡假設 Black 使用 1
+            setBit(boardBlack, lastMove);
         } else {
-            board[lastMove.x][lastMove.y] = 2;  // 這裡假設 White 使用 2
-        }
-        if (Game::checkWin(board, lastMove)) {
-            isWin = true;
-        } else {
-            isWin = false;
+            setBit(boardWhite, lastMove);
         }
         // 初始化所有子節點為 nullptr
         std::fill(std::begin(children), std::end(children), nullptr);
@@ -111,5 +106,4 @@ inline void deleteTree(Node* node) {
 
     delete node;
 }
-
 #endif  // NODE_HPP

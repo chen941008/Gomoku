@@ -43,7 +43,8 @@ void Game::startGame() {
         cout << "Please input 1 or 2" << endl;
     }
     // 用 bitboard 表示棋盤，初始皆為 0
-    int board[BOARD_SIZE][BOARD_SIZE] = {0};
+    uint64_t boardBlack[BITBOARD_COUNT] = {0};
+    uint64_t boardWhite[BITBOARD_COUNT] = {0};
     cout << "Choose first or second player, input 1 or 2" << endl;
     while (true) {  // 選擇先手或後手，防白痴crash程式
         cin >> playerOrder;
@@ -56,10 +57,10 @@ void Game::startGame() {
     while (true) {
         if (currentOrder == MAX_CHILDREN) {
             cout << "Draw" << endl;
-            printBoard(board);
+            printBoard(boardBlack, boardWhite);
             break;
         }
-        printBoard(board);
+        printBoard(boardBlack, boardWhite);
         if (currentOrder % 2 == playerOrder) {  // Player turn
             cout << "Your turn" << endl;
             int X, Y;
@@ -71,20 +72,20 @@ void Game::startGame() {
                     continue;
                 }
                 // 檢查該位置是否已被佔用
-                if (board[X][Y] != 0) {
+                if (getBit(boardBlack, {X, Y}) || getBit(boardWhite, {X, Y})) {
                     cout << "This position is already taken" << endl;
                     continue;
                 }
                 break;
             }
             if (currentOrder % 2 == 0) {
-                board[X][Y] = 1;
+                setBit(boardBlack, {X, Y});
             } else {
-                board[X][Y] = 2;
+                setBit(boardWhite, {X, Y});
             }
-            if (currentOrder >= CHECKWIN_THRESHOLD && checkWin(board, {X, Y})) {
+            if (currentOrder >= CHECKWIN_THRESHOLD && checkWin({X, Y}, boardBlack, boardWhite, currentOrder % 2 == 0)) {
                 cout << "You win" << endl;
-                printBoard(board);
+                printBoard(boardBlack, boardWhite);
                 break;
             }
             for (int i = 0; i < MAX_CHILDREN && currentNode->children[i] != nullptr; i++) {
@@ -118,15 +119,16 @@ void Game::startGame() {
             }
             Position lastMove = bestChild->lastMove;
             if (currentOrder % 2 == 0) {
-                board[lastMove.x][lastMove.y] = 1;
+                setBit(boardBlack, lastMove);
             } else {
-                board[lastMove.x][lastMove.y] = 2;
+                setBit(boardWhite, lastMove);
             }
             cout << "AI choose " << lastMove.x << " " << lastMove.y << endl;
             currentNode = bestChild;
-            if (currentOrder >= CHECKWIN_THRESHOLD && checkWin(board, lastMove)) {
+            if (currentOrder >= CHECKWIN_THRESHOLD &&
+                checkWin(lastMove, boardBlack, boardWhite, currentOrder % 2 == 0)) {
                 cout << "AI win" << endl;
-                printBoard(board);
+                printBoard(boardBlack, boardWhite);
                 break;
             }
         }
@@ -143,7 +145,7 @@ void Game::startGame() {
     delete root;
 }
 
-void Game::printBoard(int board[BOARD_SIZE][BOARD_SIZE]) {
+void Game::printBoard(uint64_t* boardBlack, uint64_t* boardWhite) {
     cout << endl;
 
     // 印出上方的欄位標題（0 ~ BOARD_SIZE-1）
@@ -174,9 +176,9 @@ void Game::printBoard(int board[BOARD_SIZE][BOARD_SIZE]) {
 
         // 印出該行的每個棋子
         for (int j = 0; j < BOARD_SIZE; j++) {
-            if (board[i][j] == 1) {
+            if (getBit(boardBlack, {i, j})) {
                 cout << " X ";
-            } else if (board[i][j] == 2) {
+            } else if (getBit(boardWhite, {i, j})) {
                 cout << " O ";
             } else {
                 cout << "   ";
@@ -240,53 +242,37 @@ void Game::generateFullTree(Node* node) {
     }
 }
 */
-bool Game::checkWin(int board[BOARD_SIZE][BOARD_SIZE], Position lastMove) {
-    int player = board[lastMove.x][lastMove.y];  // 獲取玩家（0 = 空，1 = 黑，2 = 白）
-
-    if (player == 0) {
-        return false;  // 如果該位置是空的，沒有勝利
+// 檢查某個方向是否有連續5顆棋子
+bool Game::checkDirection(Position lastMove, Position direction, uint64_t* board) {
+    int count = 1;  // 目前這顆棋子算1個
+    int x = lastMove.x, y = lastMove.y;
+    int dx = direction.x, dy = direction.y;
+    for (int i = 1; i < 5; i++) {
+        int nx = x + dx * i, ny = y + dy * i;
+        if (nx < 0 || ny < 0 || nx >= BOARD_SIZE || ny >= BOARD_SIZE || !getBit(board, {nx, ny})) break;
+        count++;
     }
-
-    // 定義方向，這些方向代表了水平、垂直、對角線方向
-    const int directions[4][2] = {
-        {1, 0},  // 水平方向（左右）
-        {0, 1},  // 垂直方向（上下）
-        {1, 1},  // 右下對角線
-        {1, -1}  // 左下對角線
-    };
-
-    // 檢查四個方向
-    for (int i = 0; i < 4; ++i) {
-        int count = 1;  // 包括當前的步驟
-
-        // 檢查正向（向某一方向延伸）
-        for (int step = 1; step < 5; ++step) {
-            int newX = lastMove.x + directions[i][0] * step;
-            int newY = lastMove.y + directions[i][1] * step;
-            if (newX >= 0 && newX < BOARD_SIZE && newY >= 0 && newY < BOARD_SIZE && board[newX][newY] == player) {
-                count++;
-            } else {
-                break;
-            }
-        }
-
-        // 檢查反向（向另一個方向延伸）
-        for (int step = 1; step < 5; ++step) {
-            int newX = lastMove.x - directions[i][0] * step;
-            int newY = lastMove.y - directions[i][1] * step;
-            if (newX >= 0 && newX < BOARD_SIZE && newY >= 0 && newY < BOARD_SIZE && board[newX][newY] == player) {
-                count++;
-            } else {
-                break;
-            }
-        }
-
-        // 如果在任意方向上達到五子，則返回勝利
-        if (count >= 5) {
-            return true;
-        }
+    for (int i = 1; i < 5; i++) {
+        int nx = x - dx * i, ny = y - dy * i;
+        if (nx < 0 || ny < 0 || nx >= BOARD_SIZE || ny >= BOARD_SIZE || !getBit(board, {nx, ny})) break;
+        count++;
     }
+    return count >= 5;
+}
 
-    // 如果沒有找到五子連線，返回 false
-    return false;
+// 總體檢查是否勝利
+bool Game::checkWin(Position lastMove, uint64_t boardBlack[BITBOARD_COUNT], uint64_t boardWhite[BITBOARD_COUNT],
+                    bool isBlackTurn) {
+    const Position directions[4] = {{1, 0}, {0, 1}, {1, 1}, {1, -1}};
+    if (isBlackTurn) {
+        return checkDirection(lastMove, directions[0], boardBlack) ||  // 水平
+               checkDirection(lastMove, directions[1], boardBlack) ||  // 垂直
+               checkDirection(lastMove, directions[2], boardBlack) ||  // 斜對角
+               checkDirection(lastMove, directions[3], boardBlack);    // 斜對角 /
+    } else {
+        return checkDirection(lastMove, directions[0], boardWhite) ||  // 水平
+               checkDirection(lastMove, directions[1], boardWhite) ||  // 垂直
+               checkDirection(lastMove, directions[2], boardWhite) ||  // 斜對角
+               checkDirection(lastMove, directions[3], boardWhite);    // 斜對角 /
+    }
 }
