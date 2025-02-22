@@ -77,12 +77,16 @@ struct Node {
         // 繼承父節點的棋盤狀態
         std::copy(std::begin(parent->boardBlack), std::end(parent->boardBlack), std::begin(boardBlack));
         std::copy(std::begin(parent->boardWhite), std::end(parent->boardWhite), std::begin(boardWhite));
-
         // 根據當前玩家，將落子位置標記到對應的棋盤
         if (isBlackTurn) {
             setBit(boardBlack, lastMove);
         } else {
             setBit(boardWhite, lastMove);
+        }
+        if (Game::checkWin(lastMove, boardBlack, boardWhite, isBlackTurn)) {
+            isWin = true;
+        } else {
+            isWin = false;
         }
         // 初始化所有子節點為 nullptr
         std::fill(std::begin(children), std::end(children), nullptr);

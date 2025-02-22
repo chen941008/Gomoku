@@ -88,11 +88,19 @@ void Game::startGame() {
                 printBoard(boardBlack, boardWhite);
                 break;
             }
+            bool found = false;
             for (int i = 0; i < MAX_CHILDREN && currentNode->children[i] != nullptr; i++) {
                 if (currentNode->children[i]->lastMove.x == X && currentNode->children[i]->lastMove.y == Y) {
                     currentNode = currentNode->children[i];
+                    found = true;
                     break;
                 }
+            }
+            // 如果玩家的落子不在拓展的節點中，則新建一個節點並加入
+            if (!found) {
+                Node* newNode = new Node({X, Y}, currentNode);
+                currentNode->children[0] = newNode;
+                currentNode = newNode;
             }
         } else {  // AI turn
             cout << "AI turn" << endl;

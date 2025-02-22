@@ -74,16 +74,49 @@ Node* MCTS::selection(Node* node) {
 }
 Node* MCTS::expansion(Node* node) {
     int index = 0;
+    // 初始化边界变量
+    int minRow = BOARD_SIZE, maxRow = -1, minCol = BOARD_SIZE, maxCol = -1;
+
+    // 遍历整个棋盘，找出已有棋子的最小和最大行列
     for (int i = 0; i < BOARD_SIZE; i++) {
         for (int j = 0; j < BOARD_SIZE; j++) {
             if (getBit(node->boardBlack, {i, j}) || getBit(node->boardWhite, {i, j})) {
-                continue;
-            } else {
+                minRow = std::min(minRow, i);
+                maxRow = std::max(maxRow, i);
+                minCol = std::min(minCol, j);
+                maxCol = std::max(maxCol, j);
+            }
+        }
+    }
+
+    // 如果棋盘上还没有棋子，则全盘扩展
+    if (maxRow == -1) {
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            for (int j = 0; j < BOARD_SIZE; j++) {
+                Node* newNode = new Node({i, j}, node);
+                node->children[index++] = newNode;
+            }
+        }
+    } else {
+        // 设置一个边界，确保不会超出棋盘范围
+        int margin = 2;  // 你可以根据需要调整这个值
+        minRow = std::max(minRow - margin, 0);
+        maxRow = std::min(maxRow + margin, BOARD_SIZE - 1);
+        minCol = std::max(minCol - margin, 0);
+        maxCol = std::min(maxCol + margin, BOARD_SIZE - 1);
+
+        // 仅在限定区域内扩展
+        for (int i = minRow; i <= maxRow; i++) {
+            for (int j = minCol; j <= maxCol; j++) {
+                if (getBit(node->boardBlack, {i, j}) || getBit(node->boardWhite, {i, j})) {
+                    continue;
+                }
                 Node* newNode = new Node({i, j}, node);
                 node->children[index++] = newNode;
             }
         }
     }
+
     if (index == 0) {
         return node;
     }
