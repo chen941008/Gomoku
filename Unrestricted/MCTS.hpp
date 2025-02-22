@@ -4,9 +4,9 @@
 struct Node;
 class MCTS {
    public:
-    MCTS(int simTimes);                    // 構造函數聲明
-    void run(Node* root, int iterations);  // run 方法聲明
-    Node* expansion(Node* node);           // expansion 方法聲明
+    MCTS(int simTimes);                   // 構造函數聲明
+    int run(Node* root, int iterations);  // run 方法聲明
+    Node* expansion(Node* node);          // expansion 方法聲明
 
    private:
     const double COEFFICIENT = 1.41;
