@@ -12,6 +12,7 @@
 #include <random>
 #include <set>
 #include <thread>
+#include <unordered_set>
 #include <vector>
 
 #include "Game.hpp"
@@ -28,7 +29,7 @@ int MCTS::run(Node* root, int iterations) {
         if (i % 10000 == 0) {
             cout << "MCTS iteration: " << i << endl << "別急，我在思考中..." << endl;
         }
-        */
+            */
         Node* selectedNode = selection(root);
         if (selectedNode->isWin) {
             backpropagation(selectedNode, root->parent, selectedNode->isBlackTurn, 1);
@@ -76,47 +77,58 @@ Node* MCTS::expansion(Node* node) {
     int index = 0;
     // 初始化边界变量
     int minRow = BOARD_SIZE, maxRow = -1, minCol = BOARD_SIZE, maxCol = -1;
-
-    // 遍历整个棋盘，找出已有棋子的最小和最大行列
-    for (int i = 0; i < BOARD_SIZE; i++) {
-        for (int j = 0; j < BOARD_SIZE; j++) {
-            if (getBit(node->boardBlack, {i, j}) || getBit(node->boardWhite, {i, j})) {
-                minRow = std::min(minRow, i);
-                maxRow = std::max(maxRow, i);
-                minCol = std::min(minCol, j);
-                maxCol = std::max(maxCol, j);
+    uint64_t occupied[BITBOARD_COUNT];
+    for (int i = 0; i < BITBOARD_COUNT; i++) {
+        occupied[i] = node->boardBlack[i] | node->boardWhite[i];
+    }
+    for (int i = 0; i < BITBOARD_COUNT; i++) {
+        uint64_t board = occupied[i];  // 取得 bitboard
+        while (board) {
+            int bitIndex = __builtin_ctzll(board);  // 找到最右邊的 1 的 index
+            int absIndex = i * 64 + bitIndex;       // 計算該 bit 在整個棋盤中的絕對位置
+            if (absIndex >= MAX_CHILDREN) {
+                break;
             }
+            int row = absIndex / BOARD_SIZE;  // 取得 row
+            int col = absIndex % BOARD_SIZE;  // 取得 col
+
+            minRow = std::min(minRow, row);
+            maxRow = std::max(maxRow, row);
+            minCol = std::min(minCol, col);
+            maxCol = std::max(maxCol, col);
+
+            board &= board - 1;  // 移除最低位的 1
         }
     }
-
-    // 如果棋盘上还没有棋子，则全盘扩展
+    // 如果棋盘上还没有棋子，则下在中间
     if (maxRow == -1) {
-        for (int i = 0; i < BOARD_SIZE; i++) {
-            for (int j = 0; j < BOARD_SIZE; j++) {
-                Node* newNode = new Node({i, j}, node);
-                node->children[index++] = newNode;
-            }
-        }
+        Node* newNode = new Node({7, 7}, node);  // 乖乖給老子下中間
+        node->children[index++] = newNode;
     } else {
         // 设置一个边界，确保不会超出棋盘范围
-        int margin = 2;  // 你可以根据需要调整这个值
+        const int margin = 2;  // 你可以根据需要调整这个值
         minRow = std::max(minRow - margin, 0);
         maxRow = std::min(maxRow + margin, BOARD_SIZE - 1);
         minCol = std::max(minCol - margin, 0);
         maxCol = std::min(maxCol + margin, BOARD_SIZE - 1);
 
         // 仅在限定区域内扩展
-        for (int i = minRow; i <= maxRow; i++) {
-            for (int j = minCol; j <= maxCol; j++) {
-                if (getBit(node->boardBlack, {i, j}) || getBit(node->boardWhite, {i, j})) {
-                    continue;
+
+        for (int i = 0; i < BITBOARD_COUNT; i++) {
+            uint64_t board = ~occupied[i];
+            while (board) {
+                int bitIndex = __builtin_ctzll(board);  // 找到最右邊的 1 的 index
+                int absIndex = i * 64 + bitIndex;       // 計算該 bit 在整個棋盤中的絕對位置
+                int row = absIndex / BOARD_SIZE;        // 取得 row
+                int col = absIndex % BOARD_SIZE;        // 取得 col
+                if (row >= minRow && row <= maxRow && col >= minCol && col <= maxCol) {
+                    Node* newNode = new Node({row, col}, node);
+                    node->children[index++] = newNode;
                 }
-                Node* newNode = new Node({i, j}, node);
-                node->children[index++] = newNode;
+                board &= board - 1;  // 移除最低位的 1
             }
         }
     }
-
     if (index == 0) {
         return node;
     }
@@ -136,41 +148,77 @@ void MCTS::backpropagation(Node* node, Node* endNode, bool isXTurn, double win) 
 }
 
 int MCTS::playout(Node* node) {
+    static const Position direction[24] = {{-2, -2}, {-2, -1}, {-2, 0}, {-2, 1}, {-2, 2}, {-1, -2}, {-1, -1}, {-1, 0},
+                                           {-1, 1},  {-1, 2},  {0, -2}, {0, -1}, {0, 1},  {0, 2},   {1, -2},  {1, -1},
+                                           {1, 0},   {1, 1},   {1, 2},  {2, -2}, {2, -1}, {2, 0},   {2, 1},   {2, 2}};
     bool startTurn = node->isBlackTurn;
     bool currentTurn = startTurn;
+    int minRow = BOARD_SIZE, maxRow = -1, minCol = BOARD_SIZE, maxCol = -1;
     uint64_t boardBlack[BITBOARD_COUNT];
     uint64_t boardWhite[BITBOARD_COUNT];
-    std::copy(std::begin(node->boardBlack), std::end(node->boardBlack), std::begin(boardBlack));
-    std::copy(std::begin(node->boardWhite), std::end(node->boardWhite), std::begin(boardWhite));
-    Position possibleMoves[MAX_CHILDREN];
-    int count = 0;
+    memcpy(boardBlack, node->boardBlack, sizeof(uint64_t) * BITBOARD_COUNT);
+    memcpy(boardWhite, node->boardWhite, sizeof(uint64_t) * BITBOARD_COUNT);
+    Position possibleMoves[MAX_CHILDREN] = {0};
+    int moveCount = 0;
+    bool moveUsed[BOARD_SIZE * BOARD_SIZE] = {false};
+    auto addPossibleMove = [&](int x, int y) {
+        if (x < 0 || x >= BOARD_SIZE || y < 0 || y >= BOARD_SIZE) return;
+        uint64_t key = x * BOARD_SIZE + y;
+        if (!moveUsed[key] && !getBit(boardBlack, {x, y}) && !getBit(boardWhite, {x, y})) {
+            possibleMoves[moveCount++] = {x, y};
+            moveUsed[key] = true;
+        }
+    };
     for (int i = 0; i < BOARD_SIZE; i++) {
         for (int j = 0; j < BOARD_SIZE; j++) {
             if (getBit(boardBlack, {i, j}) || getBit(boardWhite, {i, j})) {
-                continue;
+                minRow = std::min(minRow, i);
+                maxRow = std::max(maxRow, i);
+                minCol = std::min(minCol, j);
+                maxCol = std::max(maxCol, j);
             }
-            possibleMoves[count++] = {i, j};
         }
     }
-    if (count == 0) {
+    // 设置一个边界，确保不会超出棋盘范围
+    int margin = 2;  // 你可以根据需要调整这个值
+    minRow = std::max(minRow - margin, 0);
+    maxRow = std::min(maxRow + margin, BOARD_SIZE - 1);
+    minCol = std::max(minCol - margin, 0);
+    maxCol = std::min(maxCol + margin, BOARD_SIZE - 1);
+    for (int i = minRow; i <= maxRow; i++) {
+        for (int j = minCol; j <= maxCol; j++) {
+            if (!getBit(node->boardBlack, {i, j}) && !getBit(node->boardWhite, {i, j})) {
+                addPossibleMove(i, j);
+            }
+        }
+    }
+    if (moveCount == 0) {
         return 0;
     }
-    for (int i = count - 1; i > 0; --i) {
-        int j = generator() % (i + 1);
-        std::swap(possibleMoves[i], possibleMoves[j]);
-    }
+    int lowerBound = 0, upperBound = moveCount;
 
-    for (int i = count - 1; i >= 0; i--) {
+    for (int step = 0; step < moveCount; step++) {
+        int randomIndex = step + (generator() % (moveCount - step));
+        std::swap(possibleMoves[step], possibleMoves[randomIndex]);
+
         currentTurn = !currentTurn;
-        Position move = possibleMoves[i];
+        Position move = possibleMoves[step];
 
+        // 執行移動
         if (currentTurn) {
             setBit(boardBlack, move);
         } else {
             setBit(boardWhite, move);
         }
+
+        // 檢查是否獲勝
         if (Game::checkWin(move, boardBlack, boardWhite, currentTurn)) {
             return (currentTurn == startTurn) ? 1 : -1;
+        }
+
+        // 基於最後一次移動添加新的可能移動
+        for (const auto& d : direction) {
+            addPossibleMove(move.x + d.x, move.y + d.y);
         }
     }
     return 0;

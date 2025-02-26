@@ -56,6 +56,8 @@ struct Node {
         // 初始化棋盤為全 0 (空棋盤)
         std::fill(std::begin(boardBlack), std::end(boardBlack), 0);
         std::fill(std::begin(boardWhite), std::end(boardWhite), 0);
+        boardBlack[3] = 0xFFFFFFFE00000000;  // 沒用到的bit直接賦值為1=佔據
+        boardWhite[3] = 0xFFFFFFFE00000000;  // 沒用到的bit直接賦值為1=佔據
         // 初始化所有子節點為 nullptr
         std::fill(std::begin(children), std::end(children), nullptr);
     }
@@ -75,8 +77,8 @@ struct Node {
     Node(Position lastMove, Node* parent)
         : wins(0), visits(0), parent(parent), isBlackTurn(!parent->isBlackTurn), lastMove(lastMove) {
         // 繼承父節點的棋盤狀態
-        std::copy(std::begin(parent->boardBlack), std::end(parent->boardBlack), std::begin(boardBlack));
-        std::copy(std::begin(parent->boardWhite), std::end(parent->boardWhite), std::begin(boardWhite));
+        memcpy(boardBlack, parent->boardBlack, sizeof(uint64_t) * BITBOARD_COUNT);
+        memcpy(boardWhite, parent->boardWhite, sizeof(uint64_t) * BITBOARD_COUNT);
         // 根據當前玩家，將落子位置標記到對應的棋盤
         if (isBlackTurn) {
             setBit(boardBlack, lastMove);

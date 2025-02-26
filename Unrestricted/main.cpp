@@ -9,6 +9,7 @@
 
 using namespace std;
 int main() {
+    /*
     cout << "Welcome to Gomoku" << endl;
     int gameTimes;
     cout << "Input how many game you want to play." << endl;
@@ -16,10 +17,10 @@ int main() {
     for (int i = 0; i < gameTimes; i++) {
         Game::startGame();
     }
-    /*
+    */
     int gameTimes = 30;
     long long totalTime = 0;
-    ofstream outputFile("bitboard.csv");
+    ofstream outputFile("bitboard_V1.csv");
     if (!outputFile.is_open()) {
         cerr << "Error: Unable to open output file!" << endl;
         return 1;
@@ -45,6 +46,5 @@ int main() {
     }
     // 關閉檔案
     outputFile.close();
-    */
     return 0;
 }

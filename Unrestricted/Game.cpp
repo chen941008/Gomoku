@@ -115,6 +115,15 @@ void Game::startGame() {
                     }
                 } while (iterationTimes <= MAX_CHILDREN);
             }
+            if (currentOrder == 0) {
+                Node* newNode = new Node({7, 7}, currentNode);
+                currentNode->children[0] = newNode;
+                currentNode = newNode;
+                setBit(boardBlack, {7, 7});
+                cout << "AI choose " << "7" << " " << "7" << endl;
+                currentOrder++;
+                continue;
+            }
             ai.run(currentNode, iterationTimes);
             Node* bestChild = nullptr;
             int mostVisit = 0;
@@ -271,7 +280,7 @@ bool Game::checkDirection(Position lastMove, Position direction, uint64_t* board
 // 總體檢查是否勝利
 bool Game::checkWin(Position lastMove, uint64_t boardBlack[BITBOARD_COUNT], uint64_t boardWhite[BITBOARD_COUNT],
                     bool isBlackTurn) {
-    const Position directions[4] = {{1, 0}, {0, 1}, {1, 1}, {1, -1}};
+    static const Position directions[4] = {{1, 0}, {0, 1}, {1, 1}, {1, -1}};
     if (isBlackTurn) {
         return checkDirection(lastMove, directions[0], boardBlack) ||  // 水平
                checkDirection(lastMove, directions[1], boardBlack) ||  // 垂直
