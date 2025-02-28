@@ -132,7 +132,7 @@ Node* MCTS::expansion(Node* node) {
     if (index == 0) {
         return node;
     }
-    return node->children[generator() % index];
+    return node->children[0];
 }
 
 void MCTS::backpropagation(Node* node, Node* endNode, bool isXTurn, double win) {
@@ -153,6 +153,7 @@ int MCTS::playout(Node* node) {
                                            {1, 0},   {1, 1},   {1, 2},  {2, -2}, {2, -1}, {2, 0},   {2, 1},   {2, 2}};
     bool startTurn = node->isBlackTurn;
     bool currentTurn = startTurn;
+    thread_local std::mt19937 localRng(std::random_device{}());
     int minRow = BOARD_SIZE, maxRow = -1, minCol = BOARD_SIZE, maxCol = -1;
     uint64_t boardBlack[BITBOARD_COUNT];
     uint64_t boardWhite[BITBOARD_COUNT];
@@ -231,10 +232,10 @@ double MCTS::parallelPlayouts(int thread, int simulationTimes, Node* node) {
     for (int i = 0; i < thread; i++) {  // 修改為 i < thread
         int runTimes = (i < remainder) ? quotient + 1 : quotient;
         // 把每個執行的 future 存到 vector
-        futures[i] = threadPool.enqueue([&, runTimes]() {
+        futures[i] = threadPool.enqueue([this, runTimes, node]() {
             int results = 0;
             for (int j = 0; j < runTimes; j++) {
-                results += playout(node);
+                results += this->playout(node);
             }
             return results;
         });

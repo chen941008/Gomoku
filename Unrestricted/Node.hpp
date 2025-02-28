@@ -14,11 +14,11 @@ struct Position {
 };
 inline void setBit(uint64_t* bitboard, Position lastMove) {
     int pos = lastMove.x * BOARD_SIZE + lastMove.y;
-    bitboard[pos / 64] |= 1ULL << (pos % 64);
+    bitboard[pos >> 6] |= 1ULL << (pos & 63);
 }
 inline bool getBit(uint64_t* bitboard, Position position) {
     int pos = position.x * BOARD_SIZE + position.y;
-    return bitboard[pos / 64] & (1ULL << (pos % 64));
+    return bitboard[pos >> 6] & (1ULL << (pos & 63));
 }
 /**
  * @brief 表示遊戲節點的結構體，用於蒙特卡洛樹搜索 (MCTS)
@@ -54,12 +54,12 @@ struct Node {
      */
     Node() : wins(0), visits(0), parent(nullptr), isBlackTurn(false), lastMove({-1, -1}), isWin(false) {
         // 初始化棋盤為全 0 (空棋盤)
-        std::fill(std::begin(boardBlack), std::end(boardBlack), 0);
-        std::fill(std::begin(boardWhite), std::end(boardWhite), 0);
+        memset(boardBlack, 0, sizeof(boardBlack));
+        memset(boardWhite, 0, sizeof(boardWhite));
         boardBlack[3] = 0xFFFFFFFE00000000;  // 沒用到的bit直接賦值為1=佔據
         boardWhite[3] = 0xFFFFFFFE00000000;  // 沒用到的bit直接賦值為1=佔據
         // 初始化所有子節點為 nullptr
-        std::fill(std::begin(children), std::end(children), nullptr);
+        memset(children, 0, sizeof(children));
     }
 
     /**
@@ -91,7 +91,7 @@ struct Node {
             isWin = false;
         }
         // 初始化所有子節點為 nullptr
-        std::fill(std::begin(children), std::end(children), nullptr);
+        memset(children, 0, sizeof(children));
     }
 };
 

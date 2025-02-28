@@ -149,7 +149,6 @@ void Game::startGame() {
                 break;
             }
         }
-        cout << "別急，我刪個分支" << endl;
         currentOrder++;
         Node* parent = currentNode->parent;
         for (int i = 0; i < MAX_CHILDREN && parent->children[i] != nullptr; i++) {

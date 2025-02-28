@@ -18,10 +18,9 @@ int main() {
         Game::startGame();
     }
     */
-
-    int gameTimes = 30;
+    int gameTimes = 1;
     long long totalTime = 0;
-    ofstream outputFile("bitboard_V2.csv");
+    ofstream outputFile("bitboard_V4.csv");
     if (!outputFile.is_open()) {
         cerr << "Error: Unable to open output file!" << endl;
         return 1;
@@ -29,7 +28,7 @@ int main() {
     // 寫入 CSV 標題行
     outputFile << "SimulationTimes,AverageTime (ms)" << endl;
     // 模擬不同次數的情況
-    for (int simulationTimes = 36; simulationTimes <= 50; simulationTimes++) {
+    for (int simulationTimes = 1000; simulationTimes <= 1000; simulationTimes++) {
         totalTime = 0;
         for (int i = 0; i < gameTimes; i++) {
             Node* root = new Node();  // 創建根節點
@@ -47,6 +46,5 @@ int main() {
     }
     // 關閉檔案
     outputFile.close();
-
     return 0;
 }
