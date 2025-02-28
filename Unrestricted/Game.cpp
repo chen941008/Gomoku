@@ -17,7 +17,7 @@ void Game::startGame() {
     int playerOrder, currentOrder = 0, aiMode, iterationTimes, simulationTimes;
     cout << "Input stimulation times." << endl;
     cin >> simulationTimes;
-    MCTS ai(simulationTimes);
+    MCTS ai(simulationTimes, 8);
     ai.expansion(currentNode);
     cout << "Choose AI simulation mode: 1 = fixed simulation times, 2 = "
             "variable simulation times"

@@ -31,15 +31,15 @@ inline bool getBit(uint64_t* bitboard, Position position) {
  * - `isXTurn` 記錄當前是否輪到 X 玩家
  */
 struct Node {
-    double wins;                          ///< 該節點的獲勝次數
-    int visits;                           ///< 該節點的訪問次數
     uint64_t boardBlack[BITBOARD_COUNT];  ///< 位棋盤 (bitboard) 表示棋盤狀態
     uint64_t boardWhite[BITBOARD_COUNT];  ///< 位棋盤 (bitboard) 表示棋盤狀態
-    bool isBlackTurn;                     ///< 是否是 Black玩家的回合
     Node* parent;                         ///< 指向父節點的指標
     Node* children[MAX_CHILDREN];         ///< 指向子節點的指標陣列
-    Position lastMove;                    ///< 最後一步的位置
+    Position lastMove;                    ///< 最後一步的位置 (假設 Position 是較小的結構)
+    double wins;                          ///< 該節點的獲勝次數
+    int visits;                           ///< 該節點的訪問次數
     bool isWin;                           ///< 是否是終局節點
+    bool isBlackTurn;
 
     /**
      * @brief 預設構造函數，初始化根節點

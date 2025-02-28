@@ -3,10 +3,12 @@
 #include <stdint.h>
 
 #include <atomic>
+#include <cassert>
 #include <chrono>
 #include <climits>
 #include <cmath>
 #include <cstdint>
+#include <future>
 #include <iostream>
 #include <limits>
 #include <random>
@@ -17,10 +19,12 @@
 
 #include "Game.hpp"
 #include "Node.hpp"
+#include "ThreadPool.hpp"
 
 using namespace std;
-
-MCTS::MCTS(int simTimes) : simulationTimes(simTimes), generator(std::random_device{}()) {}
+ThreadPool threadPool(8);
+MCTS::MCTS(int simTimes, int numThreads)
+    : simulationTimes(simTimes), numThreads(numThreads), generator(std::random_device{}()) {}
 
 int MCTS::run(Node* root, int iterations) {
     auto start = std::chrono::high_resolution_clock::now();
@@ -38,11 +42,7 @@ int MCTS::run(Node* root, int iterations) {
         if (selectedNode->visits == 0) {
             selectedNode = expansion(selectedNode);
         }
-        double playoutResult = 0.0;
-        for (int j = 0; j < simulationTimes; j++) {
-            playoutResult += playout(selectedNode);
-        }
-        playoutResult /= simulationTimes;
+        double playoutResult = parallelPlayouts(numThreads, simulationTimes, selectedNode);
         backpropagation(selectedNode, root->parent, selectedNode->isBlackTurn, playoutResult);
     }
     auto end = std::chrono::high_resolution_clock::now();  // 記錄結束時間
@@ -222,4 +222,26 @@ int MCTS::playout(Node* node) {
         }
     }
     return 0;
+}
+double MCTS::parallelPlayouts(int thread, int simulationTimes, Node* node) {
+    assert(thread <= 8 && "Thread count must not exceed 8");
+    std::future<int> futures[8];
+    int quotient = simulationTimes / thread;
+    int remainder = simulationTimes % thread;
+    for (int i = 0; i < thread; i++) {  // 修改為 i < thread
+        int runTimes = (i < remainder) ? quotient + 1 : quotient;
+        // 把每個執行的 future 存到 vector
+        futures[i] = threadPool.enqueue([&, runTimes]() {
+            int results = 0;
+            for (int j = 0; j < runTimes; j++) {
+                results += playout(node);
+            }
+            return results;
+        });
+    }
+    int totalResults = 0;
+    for (int i = 0; i < thread; i++) {
+        totalResults += futures[i].get();
+    }
+    return static_cast<double>(totalResults) / simulationTimes;
 }

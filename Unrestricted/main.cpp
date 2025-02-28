@@ -18,9 +18,10 @@ int main() {
         Game::startGame();
     }
     */
+
     int gameTimes = 30;
     long long totalTime = 0;
-    ofstream outputFile("bitboard_V1.csv");
+    ofstream outputFile("bitboard_V2.csv");
     if (!outputFile.is_open()) {
         cerr << "Error: Unable to open output file!" << endl;
         return 1;
@@ -28,12 +29,12 @@ int main() {
     // 寫入 CSV 標題行
     outputFile << "SimulationTimes,AverageTime (ms)" << endl;
     // 模擬不同次數的情況
-    for (int simulationTimes = 1; simulationTimes <= 50; simulationTimes++) {
+    for (int simulationTimes = 36; simulationTimes <= 50; simulationTimes++) {
         totalTime = 0;
         for (int i = 0; i < gameTimes; i++) {
             Node* root = new Node();  // 創建根節點
             // Game::generateFullTree(root);        // 生成完整遊戲樹
-            MCTS ai(simulationTimes);          // 創建 MCTS AI
+            MCTS ai(simulationTimes, 8);       // 創建 MCTS AI
             totalTime += ai.run(root, 10000);  // 執行 MCTS
             deleteTree(root);                  // 刪除樹
         }
@@ -46,5 +47,6 @@ int main() {
     }
     // 關閉檔案
     outputFile.close();
+
     return 0;
 }
