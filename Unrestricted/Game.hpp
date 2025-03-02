@@ -10,6 +10,7 @@ enum aiMode { FIXED_SIMULATION_TIMES = 1, VARIABLE_SIMULATION_TIMES = 2 };
 class Game {
    private:
     static bool checkDirection(Position lastMove, Position direction, uint64_t* board);
+    static void showEachNodeInformation(Node* currentNode);
 
    public:
     /**

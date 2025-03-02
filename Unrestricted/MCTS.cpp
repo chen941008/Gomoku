@@ -20,9 +20,16 @@
 #include "Game.hpp"
 #include "Node.hpp"
 #include "ThreadPool.hpp"
-
+/*
+Todo list:
+1. 調整expansion 拓展範圍，範圍設為方圓一格
+2. 調整playout 最大模擬深度至50 ，若超過50則視為平手
+3. 調整playout 下棋範圍，為方圓一個後取最大矩形
+4. 調整backpropagation 計算方式，加入深度權重
+5. 加入審局函式協助判斷
+*/
 using namespace std;
-ThreadPool threadPool(8);
+ThreadPool threadPool(5);
 MCTS::MCTS(int simTimes, int numThreads)
     : simulationTimes(simTimes), numThreads(numThreads), generator(std::random_device{}()) {}
 
@@ -74,65 +81,70 @@ Node* MCTS::selection(Node* node) {
     }
 }
 Node* MCTS::expansion(Node* node) {
-    int index = 0;
-    // 初始化边界变量
-    int minRow = BOARD_SIZE, maxRow = -1, minCol = BOARD_SIZE, maxCol = -1;
-    uint64_t occupied[BITBOARD_COUNT];
+    // 建立所有已佔據位置的合併位棋盤
+    uint64_t combined[BITBOARD_COUNT];
     for (int i = 0; i < BITBOARD_COUNT; i++) {
-        occupied[i] = node->boardBlack[i] | node->boardWhite[i];
+        combined[i] = node->boardBlack[i] | node->boardWhite[i];
     }
+
+    // 準備儲存相鄰空位的位棋盤
+    uint64_t adjacentEmpty[BITBOARD_COUNT] = {0};
+
+    // 對於每個已佔據的位置，標記其空白的鄰居
     for (int i = 0; i < BITBOARD_COUNT; i++) {
-        uint64_t board = occupied[i];  // 取得 bitboard
-        while (board) {
-            int bitIndex = __builtin_ctzll(board);  // 找到最右邊的 1 的 index
-            int absIndex = i * 64 + bitIndex;       // 計算該 bit 在整個棋盤中的絕對位置
-            if (absIndex >= MAX_CHILDREN) {
+        uint64_t occupied = combined[i];
+        while (occupied) {
+            // 跳過你提到的特殊情況
+            if (i == 3 && occupied == 0xFFFFFFFE00000000) {
                 break;
             }
-            int row = absIndex / BOARD_SIZE;  // 取得 row
-            int col = absIndex % BOARD_SIZE;  // 取得 col
 
-            minRow = std::min(minRow, row);
-            maxRow = std::max(maxRow, row);
-            minCol = std::min(minCol, col);
-            maxCol = std::max(maxCol, col);
+            // 找到最低位的 1
+            int pos = __builtin_ctzll(occupied);
+            int globalPos = pos + i * 64;
+            int x = globalPos / BOARD_SIZE;
+            int y = globalPos % BOARD_SIZE;
 
-            board &= board - 1;  // 移除最低位的 1
-        }
-    }
-    // 如果棋盘上还没有棋子，则下在中间
-    if (maxRow == -1) {
-        Node* newNode = new Node({7, 7}, node);  // 乖乖給老子下中間
-        node->children[index++] = newNode;
-    } else {
-        // 设置一个边界，确保不会超出棋盘范围
-        const int margin = 2;  // 你可以根据需要调整这个值
-        minRow = std::max(minRow - margin, 0);
-        maxRow = std::min(maxRow + margin, BOARD_SIZE - 1);
-        minCol = std::max(minCol - margin, 0);
-        maxCol = std::min(maxCol + margin, BOARD_SIZE - 1);
+            // 檢查相鄰位置
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    int nx = x + dx;
+                    int ny = y + dy;
 
-        // 仅在限定区域内扩展
+                    // 跳過超出邊界的座標
+                    if (nx < 0 || nx >= BOARD_SIZE || ny < 0 || ny >= BOARD_SIZE) continue;
 
-        for (int i = 0; i < BITBOARD_COUNT; i++) {
-            uint64_t board = ~occupied[i];
-            while (board) {
-                int bitIndex = __builtin_ctzll(board);  // 找到最右邊的 1 的 index
-                int absIndex = i * 64 + bitIndex;       // 計算該 bit 在整個棋盤中的絕對位置
-                int row = absIndex / BOARD_SIZE;        // 取得 row
-                int col = absIndex % BOARD_SIZE;        // 取得 col
-                if (row >= minRow && row <= maxRow && col >= minCol && col <= maxCol) {
-                    Node* newNode = new Node({row, col}, node);
-                    node->children[index++] = newNode;
+                    // 若位置為空，則在 adjacentEmpty 標記
+                    if (!getBit(combined, {nx, ny})) {
+                        setBit(adjacentEmpty, {nx, ny});
+                    }
                 }
-                board &= board - 1;  // 移除最低位的 1
             }
+
+            // 清除最低位的 1
+            occupied &= (occupied - 1);
         }
     }
-    if (index == 0) {
-        return node;
+
+    // 為每個相鄰空位建立子節點
+    int index = 0;
+    for (int i = 0; i < BITBOARD_COUNT; i++) {
+        uint64_t expandPositions = adjacentEmpty[i];
+        while (expandPositions) {
+            int pos = __builtin_ctzll(expandPositions);
+            int globalPos = pos + i * 64;
+            int x = globalPos / BOARD_SIZE;
+            int y = globalPos % BOARD_SIZE;
+
+            node->children[index++] = new Node({x, y}, node);
+
+            // 清除最低位的 1
+            expandPositions &= (expandPositions - 1);
+        }
     }
-    return node->children[0];
+
+    // 返回第一個子節點，若無則返回 node
+    return index > 0 ? node->children[0] : node;
 }
 
 void MCTS::backpropagation(Node* node, Node* endNode, bool isXTurn, double win) {
@@ -148,9 +160,6 @@ void MCTS::backpropagation(Node* node, Node* endNode, bool isXTurn, double win) 
 }
 
 int MCTS::playout(Node* node) {
-    static const Position direction[24] = {{-2, -2}, {-2, -1}, {-2, 0}, {-2, 1}, {-2, 2}, {-1, -2}, {-1, -1}, {-1, 0},
-                                           {-1, 1},  {-1, 2},  {0, -2}, {0, -1}, {0, 1},  {0, 2},   {1, -2},  {1, -1},
-                                           {1, 0},   {1, 1},   {1, 2},  {2, -2}, {2, -1}, {2, 0},   {2, 1},   {2, 2}};
     bool startTurn = node->isBlackTurn;
     bool currentTurn = startTurn;
     thread_local std::mt19937 localRng(std::random_device{}());
@@ -181,14 +190,14 @@ int MCTS::playout(Node* node) {
         }
     }
     // 设置一个边界，确保不会超出棋盘范围
-    int margin = 2;  // 你可以根据需要调整这个值
+    const int margin = 1;  // 你可以根据需要调整这个值
     minRow = std::max(minRow - margin, 0);
     maxRow = std::min(maxRow + margin, BOARD_SIZE - 1);
     minCol = std::max(minCol - margin, 0);
     maxCol = std::min(maxCol + margin, BOARD_SIZE - 1);
     for (int i = minRow; i <= maxRow; i++) {
         for (int j = minCol; j <= maxCol; j++) {
-            if (!getBit(node->boardBlack, {i, j}) && !getBit(node->boardWhite, {i, j})) {
+            if (!getBit(boardBlack, {i, j}) && !getBit(boardWhite, {i, j})) {
                 addPossibleMove(i, j);
             }
         }
@@ -197,9 +206,9 @@ int MCTS::playout(Node* node) {
         return 0;
     }
     int lowerBound = 0, upperBound = moveCount;
-
-    for (int step = 0; step < moveCount; step++) {
-        int randomIndex = step + (generator() % (moveCount - step));
+    const int MAX_DEEP = 50;
+    for (int step = 0; step < moveCount && step < MAX_DEEP; step++) {
+        int randomIndex = step + (localRng() % (moveCount - step));
         std::swap(possibleMoves[step], possibleMoves[randomIndex]);
 
         currentTurn = !currentTurn;
@@ -218,18 +227,39 @@ int MCTS::playout(Node* node) {
         }
 
         // 基於最後一次移動添加新的可能移動
-        for (const auto& d : direction) {
-            addPossibleMove(move.x + d.x, move.y + d.y);
+        // 當 move 在 x 軸觸碰邊界時
+        if (move.x == minRow) {
+            minRow = move.x;
+            for (int col = minCol; col <= maxCol; col++) {
+                addPossibleMove(minRow, col);
+            }
+        } else if (move.x == maxRow) {
+            maxRow = move.x;
+            for (int col = minCol; col <= maxCol; col++) {
+                addPossibleMove(maxRow, col);
+            }
+        }
+        // 當 move 在 y 軸觸碰邊界時
+        if (move.y == minCol) {
+            minCol = move.y;
+            for (int row = minRow; row <= maxRow; row++) {
+                addPossibleMove(row, minCol);
+            }
+        } else if (move.y == maxCol) {
+            maxCol = move.y;
+            for (int row = minRow; row <= maxRow; row++) {
+                addPossibleMove(row, maxCol);
+            }
         }
     }
     return 0;
 }
 double MCTS::parallelPlayouts(int thread, int simulationTimes, Node* node) {
-    assert(thread <= 8 && "Thread count must not exceed 8");
+    assert(thread <= 6 && "Thread count must not exceed 6");
     std::future<int> futures[8];
     int quotient = simulationTimes / thread;
     int remainder = simulationTimes % thread;
-    for (int i = 0; i < thread; i++) {  // 修改為 i < thread
+    for (int i = 0; i < thread - 1; i++) {  // 最後一個 thread 不用 給主線程執行
         int runTimes = (i < remainder) ? quotient + 1 : quotient;
         // 把每個執行的 future 存到 vector
         futures[i] = threadPool.enqueue([this, runTimes, node]() {
@@ -240,8 +270,12 @@ double MCTS::parallelPlayouts(int thread, int simulationTimes, Node* node) {
             return results;
         });
     }
+    // 主線程執行
     int totalResults = 0;
-    for (int i = 0; i < thread; i++) {
+    for (int i = 0; i < quotient; i++) {
+        totalResults += playout(node);
+    }
+    for (int i = 0; i < thread - 1; i++) {  // 最後一個 thread 不用 給主線程執行
         totalResults += futures[i].get();
     }
     return static_cast<double>(totalResults) / simulationTimes;

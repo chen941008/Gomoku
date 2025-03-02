@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 
+#include <iomanip>
 #include <iostream>
 
 #include "MCTS.hpp"
@@ -17,7 +18,7 @@ void Game::startGame() {
     int playerOrder, currentOrder = 0, aiMode, iterationTimes, simulationTimes;
     cout << "Input stimulation times." << endl;
     cin >> simulationTimes;
-    MCTS ai(simulationTimes, 8);
+    MCTS ai(simulationTimes, 5);
     ai.expansion(currentNode);
     cout << "Choose AI simulation mode: 1 = fixed simulation times, 2 = "
             "variable simulation times"
@@ -62,6 +63,7 @@ void Game::startGame() {
         }
         printBoard(boardBlack, boardWhite);
         if (currentOrder % 2 == playerOrder) {  // Player turn
+            showEachNodeInformation(currentNode);
             cout << "Your turn" << endl;
             int X, Y;
             cout << "input X Y 0~14" << endl;
@@ -140,6 +142,7 @@ void Game::startGame() {
             } else {
                 setBit(boardWhite, lastMove);
             }
+            showEachNodeInformation(currentNode);
             cout << "AI choose " << lastMove.x << " " << lastMove.y << endl;
             currentNode = bestChild;
             if (currentOrder >= CHECKWIN_THRESHOLD &&
@@ -290,5 +293,15 @@ bool Game::checkWin(Position lastMove, uint64_t boardBlack[BITBOARD_COUNT], uint
                checkDirection(lastMove, directions[1], boardWhite) ||  // 垂直
                checkDirection(lastMove, directions[2], boardWhite) ||  // 斜對角
                checkDirection(lastMove, directions[3], boardWhite);    // 斜對角 /
+    }
+}
+void Game::showEachNodeInformation(Node* currentNode) {
+    for (int i = 0; i < MAX_CHILDREN && currentNode->children[i] != nullptr; i++) {
+        // 設定固定格式與寬度
+        std::cout << std::fixed << std::setprecision(3) << "move: " << std::setw(3)
+                  << currentNode->children[i]->lastMove.x << " " << std::setw(3) << currentNode->children[i]->lastMove.y
+                  << " | wins: " << std::setw(8) << currentNode->children[i]->wins << " | visits: " << std::setw(8)
+                  << currentNode->children[i]->visits << " | winRate: " << std::setw(8)
+                  << (currentNode->children[i]->wins / currentNode->children[i]->visits) << std::endl;
     }
 }
