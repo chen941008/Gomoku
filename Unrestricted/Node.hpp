@@ -8,43 +8,22 @@
 
 #include "Game.hpp"
 using std::array;
-#define WALL 0b00         // 牆壁
-#define BLACK 0b01        // 黑子
-#define WHITE 0b10        // 白子
-#define EMPTY 0b11        // 空位
-#define EXTENDED_SIZE 16  // 每行 16 格對齊
-#define BIT_PER_CELL 2
-#define CELLS_PER_UINT32 (32 / BIT_PER_CELL)  // 每 32-bit 可存 16 格
-const int MAX_CHILDREN = 225;                 ///< 每個節點最多的子節點數量（對應 15x15 棋盤）
+#define BITBOARD_COUNT ((BOARD_SIZE * BOARD_SIZE + 63) / 64)  // 計算需要多少個 uint64_t 來表示整個棋盤
+const int MAX_CHILDREN = 225;                                 ///< 每個節點最多的子節點數量（對應 15x15 棋盤）
 struct Position {
     int x;
     int y;
 };
-// 讀取 rowBoard 中指定位置的 cell 值（使用我們之前定義的位移方法）
-// 注意：這裡 row_board 為 uint32_t 陣列，BOARD_SIZE 為 15，EXTENDED_SIZE 為 16
-inline uint8_t get_piece(int row, int col, const uint32_t* row_board) {
-    int row_index = (row * EXTENDED_SIZE + col) / CELLS_PER_UINT32;
-    int pos_in_word = (row * EXTENDED_SIZE + col) % CELLS_PER_UINT32;
-    int row_shift = ((CELLS_PER_UINT32 - 1) - pos_in_word) * BIT_PER_CELL;
-    return (row_board[row_index] >> row_shift) & 0b11;
+inline void setBit(uint64_t* bitboard, Position lastMove) {
+    int pos = lastMove.x * BOARD_SIZE + lastMove.y;
+    bitboard[pos >> 6] |= 1ULL << (pos & 63);
 }
-inline uint8_t get_piece(uint32_t board, int index) { return (board >> (((CELLS_PER_UINT32 - 1) - index) * 2)) & 0b11; }
-
-// 設置 rowBoard 中指定位置的 cell 值（使用我們之前定義的位移方法）
-// 注意：這裡 row_board 為 uint32_t 陣列，BOARD_SIZE 為 15，EXTENDED_SIZE 為 16
-inline void set_piece(int row, int col, uint8_t piece, uint32_t* row_board, uint32_t* col_board) {
-    int row_index = (row * EXTENDED_SIZE + col) / CELLS_PER_UINT32;
-    int rowPos = (row * EXTENDED_SIZE + col) % CELLS_PER_UINT32;
-    int row_shift = ((CELLS_PER_UINT32 - 1) - rowPos) * BIT_PER_CELL;
-    row_board[row_index] &= ~(0b11U << row_shift);
-    row_board[row_index] |= ((uint32_t)piece << row_shift);
-
-    int col_index = (col * EXTENDED_SIZE + row) / CELLS_PER_UINT32;  // 轉換為列索引
-    int colPos = ((col * EXTENDED_SIZE + row) % CELLS_PER_UINT32);
-    int col_shift = ((CELLS_PER_UINT32 - 1) - colPos) * BIT_PER_CELL;
-    col_board[col_index] &= ~(0b11U << col_shift);
-    col_board[col_index] |= ((uint32_t)piece << col_shift);
+inline void setBit(uint64_t* bitboard, int pos) { bitboard[pos >> 6] |= 1ULL << (pos & 63); }
+inline bool getBit(uint64_t* bitboard, Position position) {
+    int pos = position.x * BOARD_SIZE + position.y;
+    return bitboard[pos >> 6] & (1ULL << (pos & 63));
 }
+inline bool getBit(uint64_t* bitboard, int pos) { return bitboard[pos >> 6] & (1ULL << (pos & 63)); }
 /**
  * @brief 表示遊戲節點的結構體，用於蒙特卡洛樹搜索 (MCTS)
  *
@@ -56,14 +35,14 @@ inline void set_piece(int row, int col, uint8_t piece, uint32_t* row_board, uint
  * - `isXTurn` 記錄當前是否輪到 X 玩家
  */
 struct Node {
-    uint32_t rowBoard[BOARD_SIZE];  ///< 棋盤的row狀態
-    uint32_t colBoard[BOARD_SIZE];  ///< 棋盤的column狀態
-    Node* parent;                   ///< 指向父節點的指標
-    Node* children[MAX_CHILDREN];   ///< 指向子節點的指標陣列
-    Position lastMove;              ///< 最後一步的位置 (假設 Position 是較小的結構)
-    double wins;                    ///< 該節點的獲勝次數
-    int visits;                     ///< 該節點的訪問次數
-    bool isWin;                     ///< 是否是終局節點
+    uint64_t boardBlack[BITBOARD_COUNT];  ///< 位棋盤 (bitboard) 表示棋盤狀態
+    uint64_t boardWhite[BITBOARD_COUNT];  ///< 位棋盤 (bitboard) 表示棋盤狀態
+    Node* parent;                         ///< 指向父節點的指標
+    Node* children[MAX_CHILDREN];         ///< 指向子節點的指標陣列
+    Position lastMove;                    ///< 最後一步的位置 (假設 Position 是較小的結構)
+    double wins;                          ///< 該節點的獲勝次數
+    int visits;                           ///< 該節點的訪問次數
+    bool isWin;                           ///< 是否是終局節點
     bool isBlackTurn;
 
     /**
@@ -79,8 +58,10 @@ struct Node {
      */
     Node() : wins(0), visits(0), parent(nullptr), isBlackTurn(false), lastMove({-1, -1}), isWin(false) {
         // 初始化棋盤為全 0 (空棋盤)
-        std::fill(rowBoard, rowBoard + BOARD_SIZE, 0xFFFFFFFC);
-        std::fill(colBoard, colBoard + BOARD_SIZE, 0xFFFFFFFC);
+        memset(boardBlack, 0, sizeof(boardBlack));
+        memset(boardWhite, 0, sizeof(boardWhite));
+        boardBlack[3] = 0xFFFFFFFE00000000;  // 沒用到的bit直接賦值為1=佔據
+        boardWhite[3] = 0xFFFFFFFE00000000;  // 沒用到的bit直接賦值為1=佔據
         // 初始化所有子節點為 nullptr
         memset(children, 0, sizeof(children));
     }
@@ -100,12 +81,15 @@ struct Node {
     Node(Position lastMove, Node* parent)
         : wins(0), visits(0), parent(parent), isBlackTurn(!parent->isBlackTurn), lastMove(lastMove) {
         // 繼承父節點的棋盤狀態
-        memcpy(rowBoard, parent->rowBoard, sizeof(uint32_t) * BOARD_SIZE);
-        memcpy(colBoard, parent->colBoard, sizeof(uint32_t) * BOARD_SIZE);
+        memcpy(boardBlack, parent->boardBlack, sizeof(uint64_t) * BITBOARD_COUNT);
+        memcpy(boardWhite, parent->boardWhite, sizeof(uint64_t) * BITBOARD_COUNT);
         // 根據當前玩家，將落子位置標記到對應的棋盤
-        set_piece(lastMove.x, lastMove.y, isBlackTurn ? BLACK : WHITE, rowBoard, colBoard);
-        // 檢查是否獲勝
-        if (Game::checkWin(lastMove, rowBoard, colBoard, isBlackTurn)) {
+        if (isBlackTurn) {
+            setBit(boardBlack, lastMove);
+        } else {
+            setBit(boardWhite, lastMove);
+        }
+        if (Game::checkWin(lastMove, boardBlack, boardWhite, isBlackTurn)) {
             isWin = true;
         } else {
             isWin = false;
