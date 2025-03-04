@@ -9,6 +9,7 @@
 
 using namespace std;
 int main() {
+    /*
     cout << "Welcome to Gomoku" << endl;
     int gameTimes;
     cout << "Input how many game you want to play." << endl;
@@ -16,8 +17,9 @@ int main() {
     for (int i = 0; i < gameTimes; i++) {
         Game::startGame();
     }
-    /*
-    int gameTimes = 1;
+    */
+    initializePrecomputed();
+    int gameTimes = 5;
     long long totalTime = 0;
     ofstream outputFile("bitboard_main_thread.csv");
     if (!outputFile.is_open()) {
@@ -46,6 +48,7 @@ int main() {
                  << " ms" << endl;
         }
     }
+    /*
     for (int simulationTimes = 1000; simulationTimes <= 10000; simulationTimes += 1000) {
         totalTime = 0;
         for (int i = 0; i < gameTimes; i++) {

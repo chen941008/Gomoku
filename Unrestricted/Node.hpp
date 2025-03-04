@@ -20,30 +20,59 @@ struct Position {
     int x;
     int y;
 };
-// 讀取 rowBoard 中指定位置的 cell 值（使用我們之前定義的位移方法）
-// 注意：這裡 row_board 為 uint32_t 陣列，BOARD_SIZE 為 15，EXTENDED_SIZE 為 16
-inline uint8_t get_piece(int row, int col, const uint32_t* row_board) {
-    int row_index = (row * EXTENDED_SIZE + col) / CELLS_PER_UINT32;
-    int pos_in_word = (row * EXTENDED_SIZE + col) % CELLS_PER_UINT32;
-    int row_shift = ((CELLS_PER_UINT32 - 1) - pos_in_word) * BIT_PER_CELL;
-    return (row_board[row_index] >> row_shift) & 0b11;
+struct Precomputed {
+    int index;  // 對應到 row_board 或 col_board 中的索引
+    int shift;  // 對應到該 uint32_t 中的位移量
+};
+
+// 使用 inline 變數，避免多重定義
+inline Precomputed precompRow[BOARD_SIZE][BOARD_SIZE];
+inline Precomputed precompCol[BOARD_SIZE][BOARD_SIZE];
+
+// 初始化查表，建議在程式啟動時呼叫一次
+inline void initializePrecomputed() {
+    for (int row = 0; row < BOARD_SIZE; row++) {
+        for (int col = 0; col < BOARD_SIZE; col++) {
+            // 對於 row_board：棋盤以行為主
+            int linear = row * EXTENDED_SIZE + col;
+            precompRow[row][col].index = linear / CELLS_PER_UINT32;
+            int pos = linear % CELLS_PER_UINT32;
+            precompRow[row][col].shift = ((CELLS_PER_UINT32 - 1) - pos) * BIT_PER_CELL;
+
+            // 對於 col_board：棋盤以列為主（交換 row 與 col）
+            int linearCol = col * EXTENDED_SIZE + row;
+            precompCol[row][col].index = linearCol / CELLS_PER_UINT32;
+            int posCol = linearCol % CELLS_PER_UINT32;
+            precompCol[row][col].shift = ((CELLS_PER_UINT32 - 1) - posCol) * BIT_PER_CELL;
+        }
+    }
 }
-inline uint8_t get_piece(uint32_t board, int index) { return (board >> (((CELLS_PER_UINT32 - 1) - index) * 2)) & 0b11; }
 
-// 設置 rowBoard 中指定位置的 cell 值（使用我們之前定義的位移方法）
-// 注意：這裡 row_board 為 uint32_t 陣列，BOARD_SIZE 為 15，EXTENDED_SIZE 為 16
+// 使用預計算表的 get_piece 與 set_piece
+inline uint8_t get_piece(int row, int col, const uint32_t* row_board) {
+    int index = precompRow[row][col].index;
+    int shift = precompRow[row][col].shift;
+    return (row_board[index] >> shift) & 0b11;
+}
+
+// 另一個 get_piece 版本（對單一 uint32_t）
+inline uint8_t get_piece(uint32_t board, int index) {
+    return (board >> (((CELLS_PER_UINT32 - 1) - index) * BIT_PER_CELL)) & 0b11;
+}
+
+// 使用查表加速的 set_piece：同時更新 row_board 與 col_board
 inline void set_piece(int row, int col, uint8_t piece, uint32_t* row_board, uint32_t* col_board) {
-    int row_index = (row * EXTENDED_SIZE + col) / CELLS_PER_UINT32;
-    int rowPos = (row * EXTENDED_SIZE + col) % CELLS_PER_UINT32;
-    int row_shift = ((CELLS_PER_UINT32 - 1) - rowPos) * BIT_PER_CELL;
-    row_board[row_index] &= ~(0b11U << row_shift);
-    row_board[row_index] |= ((uint32_t)piece << row_shift);
+    // 更新 row_board
+    int rIndex = precompRow[row][col].index;
+    int rShift = precompRow[row][col].shift;
+    row_board[rIndex] &= ~(0b11U << rShift);
+    row_board[rIndex] |= ((uint32_t)piece << rShift);
 
-    int col_index = (col * EXTENDED_SIZE + row) / CELLS_PER_UINT32;  // 轉換為列索引
-    int colPos = ((col * EXTENDED_SIZE + row) % CELLS_PER_UINT32);
-    int col_shift = ((CELLS_PER_UINT32 - 1) - colPos) * BIT_PER_CELL;
-    col_board[col_index] &= ~(0b11U << col_shift);
-    col_board[col_index] |= ((uint32_t)piece << col_shift);
+    // 更新 col_board
+    int cIndex = precompCol[row][col].index;
+    int cShift = precompCol[row][col].shift;
+    col_board[cIndex] &= ~(0b11U << cShift);
+    col_board[cIndex] |= ((uint32_t)piece << cShift);
 }
 /**
  * @brief 表示遊戲節點的結構體，用於蒙特卡洛樹搜索 (MCTS)
