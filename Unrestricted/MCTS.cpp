@@ -22,11 +22,12 @@
 #include "ThreadPool.hpp"
 /*
 Todo list:
-1. 調整expansion 拓展範圍，範圍設為方圓一格
-2. 調整playout 最大模擬深度至50 ，若超過50則視為平手
-3. 調整playout 下棋範圍，為方圓一個後取最大矩形
+1. 調整expansion 拓展範圍，範圍設為方圓一格 finish
+2. 調整playout 最大模擬深度至50 ，若超過50則視為平手 finish
+3. 調整playout 下棋範圍，為方圓一個後取最大矩形 finish
 4. 調整backpropagation 計算方式，加入深度權重
 5. 加入審局函式協助判斷
+6. 更換棋盤資料結構，改為uint32_t
 */
 using namespace std;
 ThreadPool threadPool(5);
@@ -81,70 +82,56 @@ Node* MCTS::selection(Node* node) {
     }
 }
 Node* MCTS::expansion(Node* node) {
-    // 建立所有已佔據位置的合併位棋盤
-    uint64_t combined[BITBOARD_COUNT];
-    for (int i = 0; i < BITBOARD_COUNT; i++) {
-        combined[i] = node->boardBlack[i] | node->boardWhite[i];
-    }
-
-    // 準備儲存相鄰空位的位棋盤
-    uint64_t adjacentEmpty[BITBOARD_COUNT] = {0};
-
-    // 對於每個已佔據的位置，標記其空白的鄰居
-    for (int i = 0; i < BITBOARD_COUNT; i++) {
-        uint64_t occupied = combined[i];
-        while (occupied) {
-            // 跳過你提到的特殊情況
-            if (i == 3 && occupied == 0xFFFFFFFE00000000) {
-                break;
+    // 1. 為每一行建立 15-bit 的 occupancy 掩碼
+    //    其中 bit i (0 <= i < BOARD_SIZE) 為 1 表示該行第 i 個位置（最左邊為 i=0，最右邊為 i=BOARD_SIZE-1）已落子。
+    uint16_t occupancy[BOARD_SIZE] = {0};
+    for (int x = 0; x < BOARD_SIZE; x++) {
+        uint32_t rowVal = node->rowBoard[x];
+        uint16_t mask = 0;
+        for (int col = 0; col < BOARD_SIZE; col++) {
+            int shift = ((CELLS_PER_UINT32 - 1) - col) * BIT_PER_CELL;
+            uint8_t cell = (rowVal >> shift) & 0b11;
+            if (cell != EMPTY) {  // 非 EMPTY 代表已落子（BLACK 或 WHITE）
+                mask |= (1 << col);
             }
-
-            // 找到最低位的 1
-            int pos = __builtin_ctzll(occupied);
-            int globalPos = pos + i * 64;
-            int x = globalPos / BOARD_SIZE;
-            int y = globalPos % BOARD_SIZE;
-
-            // 檢查相鄰位置
-            for (int dx = -1; dx <= 1; dx++) {
-                for (int dy = -1; dy <= 1; dy++) {
-                    int nx = x + dx;
-                    int ny = y + dy;
-
-                    // 跳過超出邊界的座標
-                    if (nx < 0 || nx >= BOARD_SIZE || ny < 0 || ny >= BOARD_SIZE) continue;
-
-                    // 若位置為空，則在 adjacentEmpty 標記
-                    if (!getBit(combined, {nx, ny})) {
-                        setBit(adjacentEmpty, {nx, ny});
-                    }
-                }
-            }
-
-            // 清除最低位的 1
-            occupied &= (occupied - 1);
         }
+        occupancy[x] = mask;
     }
 
-    // 為每個相鄰空位建立子節點
+    // 2. 為每一行計算候選落子掩碼
+    //    鄰近範圍包括同一行左右、以及上一行和下一行相同位置左右。
+    uint16_t candidateMask[BOARD_SIZE] = {0};
+    for (int x = 0; x < BOARD_SIZE; x++) {
+        // 自己這行的鄰近：occupancy[x] 本身，加上向左、向右平移
+        uint16_t selfNeighbors = occupancy[x] | (occupancy[x] << 1) | (occupancy[x] >> 1);
+        uint16_t aboveNeighbors = 0;
+        uint16_t belowNeighbors = 0;
+        if (x > 0) {
+            aboveNeighbors = occupancy[x - 1] | (occupancy[x - 1] << 1) | (occupancy[x - 1] >> 1);
+        }
+        if (x < BOARD_SIZE - 1) {
+            belowNeighbors = occupancy[x + 1] | (occupancy[x + 1] << 1) | (occupancy[x + 1] >> 1);
+        }
+        // 合併鄰近（自己行、上行、下行）的掩碼
+        uint16_t neighbors = selfNeighbors | aboveNeighbors | belowNeighbors;
+        // 排除已落子的位置
+        candidateMask[x] = neighbors & ~(occupancy[x]);
+    }
+
+    // 3. 根據 candidateMask 為每個候選落子建立子節點
     int index = 0;
-    for (int i = 0; i < BITBOARD_COUNT; i++) {
-        uint64_t expandPositions = adjacentEmpty[i];
-        while (expandPositions) {
-            int pos = __builtin_ctzll(expandPositions);
-            int globalPos = pos + i * 64;
-            int x = globalPos / BOARD_SIZE;
-            int y = globalPos % BOARD_SIZE;
-
-            node->children[index++] = new Node({x, y}, node);
-
-            // 清除最低位的 1
-            expandPositions &= (expandPositions - 1);
+    for (int x = 0; x < BOARD_SIZE; x++) {
+        uint16_t rowCandidates = candidateMask[x];
+        // 逐位檢查候選掩碼中的每個 bit
+        for (int y = 0; y < BOARD_SIZE; y++) {
+            if (rowCandidates & (1 << y)) {
+                // 建立子節點，落子位置為 (x, y)
+                node->children[index++] = new Node({x, y}, node);
+            }
         }
     }
 
-    // 返回第一個子節點，若無則返回 node
-    return index > 0 ? node->children[0] : node;
+    return (index > 0) ? node->children[0] : node;
 }
 
 void MCTS::backpropagation(Node* node, Node* endNode, bool isXTurn, double win) {
@@ -163,25 +150,21 @@ int MCTS::playout(Node* node) {
     bool startTurn = node->isBlackTurn;
     bool currentTurn = startTurn;
     thread_local std::mt19937 localRng(std::random_device{}());
+
+    // 建立局部棋盤複本（注意：我們的棋盤是 15 行，每行有 16 格，其中最後一格作為對齊用，真正有效區域為 15*15）
+    uint32_t boardRow[BOARD_SIZE];
+    uint32_t boardCol[BOARD_SIZE];
+    std::copy(std::begin(node->rowBoard), std::end(node->rowBoard), boardRow);
+    std::copy(std::begin(node->colBoard), std::end(node->colBoard), boardCol);
+
+    // 初始化落子範圍：我們只考慮 15x15 有效區域
     int minRow = BOARD_SIZE, maxRow = -1, minCol = BOARD_SIZE, maxCol = -1;
-    uint64_t boardBlack[BITBOARD_COUNT];
-    uint64_t boardWhite[BITBOARD_COUNT];
-    memcpy(boardBlack, node->boardBlack, sizeof(uint64_t) * BITBOARD_COUNT);
-    memcpy(boardWhite, node->boardWhite, sizeof(uint64_t) * BITBOARD_COUNT);
-    Position possibleMoves[MAX_CHILDREN] = {0};
-    int moveCount = 0;
-    bool moveUsed[BOARD_SIZE * BOARD_SIZE] = {false};
-    auto addPossibleMove = [&](int x, int y) {
-        if (x < 0 || x >= BOARD_SIZE || y < 0 || y >= BOARD_SIZE) return;
-        uint64_t key = x * BOARD_SIZE + y;
-        if (!moveUsed[key] && !getBit(boardBlack, {x, y}) && !getBit(boardWhite, {x, y})) {
-            possibleMoves[moveCount++] = {x, y};
-            moveUsed[key] = true;
-        }
-    };
+
+    // 掃描棋盤，找出已有落子的位置
     for (int i = 0; i < BOARD_SIZE; i++) {
         for (int j = 0; j < BOARD_SIZE; j++) {
-            if (getBit(boardBlack, {i, j}) || getBit(boardWhite, {i, j})) {
+            uint8_t cell = get_piece(i, j, boardRow);
+            if (cell == BLACK || cell == WHITE) {
                 minRow = std::min(minRow, i);
                 maxRow = std::max(maxRow, i);
                 minCol = std::min(minCol, j);
@@ -189,45 +172,66 @@ int MCTS::playout(Node* node) {
             }
         }
     }
-    // 设置一个边界，确保不会超出棋盘范围
-    const int margin = 1;  // 你可以根据需要调整这个值
+    // 若棋盤尚無落子，則預設全部可下
+    if (maxRow == -1) {
+        minRow = 0;
+        maxRow = BOARD_SIZE - 1;
+        minCol = 0;
+        maxCol = BOARD_SIZE - 1;
+    }
+
+    // 設定邊界 margin（確保拓展不超出棋盤）
+    const int margin = 1;
     minRow = std::max(minRow - margin, 0);
     maxRow = std::min(maxRow + margin, BOARD_SIZE - 1);
     minCol = std::max(minCol - margin, 0);
     maxCol = std::min(maxCol + margin, BOARD_SIZE - 1);
+
+    // 收集在邊界區域內的所有可能落子點（在 minRow～maxRow 與 minCol～maxCol 範圍內）
+    Position possibleMoves[MAX_CHILDREN] = {0};
+    int moveCount = 0;
+    bool moveUsed[BOARD_SIZE * BOARD_SIZE] = {false};
+    auto addPossibleMove = [&](int x, int y) {
+        if (x < 0 || x >= BOARD_SIZE || y < 0 || y >= BOARD_SIZE) return;
+        int key = x * BOARD_SIZE + y;
+        if (!moveUsed[key] && (get_piece(x, y, boardRow) == EMPTY)) {
+            possibleMoves[moveCount++] = {x, y};
+            moveUsed[key] = true;
+        }
+    };
     for (int i = minRow; i <= maxRow; i++) {
         for (int j = minCol; j <= maxCol; j++) {
-            if (!getBit(boardBlack, {i, j}) && !getBit(boardWhite, {i, j})) {
+            if (get_piece(i, j, boardRow) == EMPTY) {
                 addPossibleMove(i, j);
             }
         }
     }
-    if (moveCount == 0) {
-        return 0;
-    }
-    int lowerBound = 0, upperBound = moveCount;
+
+    if (moveCount == 0) return 0;
+
     const int MAX_DEEP = 50;
     for (int step = 0; step < moveCount && step < MAX_DEEP; step++) {
+        // 隨機選擇下一步：隨機洗牌 remaining moves
         int randomIndex = step + (localRng() % (moveCount - step));
         std::swap(possibleMoves[step], possibleMoves[randomIndex]);
 
         currentTurn = !currentTurn;
         Position move = possibleMoves[step];
 
-        // 執行移動
+        // 執行移動：根據當前輪次落下 BLACK 或 WHITE
         if (currentTurn) {
-            setBit(boardBlack, move);
+            set_piece(move.x, move.y, BLACK, boardRow, boardCol);
         } else {
-            setBit(boardWhite, move);
+            set_piece(move.x, move.y, WHITE, boardRow, boardCol);
         }
 
         // 檢查是否獲勝
-        if (Game::checkWin(move, boardBlack, boardWhite, currentTurn)) {
+        if (Game::checkWin(move, boardRow, boardCol, currentTurn)) {
             return (currentTurn == startTurn) ? 1 : -1;
         }
 
-        // 基於最後一次移動添加新的可能移動
-        // 當 move 在 x 軸觸碰邊界時
+        // 當落子觸及目前邊界時，拓展候選範圍
+        // 若落子在 x 軸邊界，則更新該行並嘗試加入新落子點
         if (move.x == minRow) {
             minRow = move.x;
             for (int col = minCol; col <= maxCol; col++) {
@@ -239,7 +243,7 @@ int MCTS::playout(Node* node) {
                 addPossibleMove(maxRow, col);
             }
         }
-        // 當 move 在 y 軸觸碰邊界時
+        // 同理，對 y 軸
         if (move.y == minCol) {
             minCol = move.y;
             for (int row = minRow; row <= maxRow; row++) {
@@ -254,6 +258,7 @@ int MCTS::playout(Node* node) {
     }
     return 0;
 }
+
 double MCTS::parallelPlayouts(int thread, int simulationTimes, Node* node) {
     assert(thread <= 6 && "Thread count must not exceed 6");
     std::future<int> futures[8];
