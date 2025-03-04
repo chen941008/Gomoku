@@ -30,7 +30,7 @@ Todo list:
 6. 更換棋盤資料結構，改為uint32_t
 */
 using namespace std;
-ThreadPool threadPool(5);
+ThreadPool threadPool(6);
 MCTS::MCTS(int simTimes, int numThreads)
     : simulationTimes(simTimes), numThreads(numThreads), generator(std::random_device{}()) {}
 
@@ -264,7 +264,7 @@ double MCTS::parallelPlayouts(int thread, int simulationTimes, Node* node) {
     std::future<int> futures[8];
     int quotient = simulationTimes / thread;
     int remainder = simulationTimes % thread;
-    for (int i = 0; i < thread - 1; i++) {  // 最後一個 thread 不用 給主線程執行
+    for (int i = 0; i < thread; i++) {  // 最後一個 thread 不用 給主線程執行
         int runTimes = (i < remainder) ? quotient + 1 : quotient;
         // 把每個執行的 future 存到 vector
         futures[i] = threadPool.enqueue([this, runTimes, node]() {
@@ -275,11 +275,7 @@ double MCTS::parallelPlayouts(int thread, int simulationTimes, Node* node) {
             return results;
         });
     }
-    // 主線程執行
     int totalResults = 0;
-    for (int i = 0; i < quotient; i++) {
-        totalResults += playout(node);
-    }
     for (int i = 0; i < thread - 1; i++) {  // 最後一個 thread 不用 給主線程執行
         totalResults += futures[i].get();
     }

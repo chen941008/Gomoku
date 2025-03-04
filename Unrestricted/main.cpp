@@ -21,7 +21,7 @@ int main() {
     initializePrecomputed();
     int gameTimes = 5;
     long long totalTime = 0;
-    ofstream outputFile("bitboard_main_thread.csv");
+    ofstream outputFile("bitboard_main_threadV1.csv");
     if (!outputFile.is_open()) {
         cerr << "Error: Unable to open output file!" << endl;
         return 1;
@@ -29,7 +29,7 @@ int main() {
     // 寫入 CSV 標題行
     outputFile << "Core,SimulationTimes,AverageTime (ms)" << endl;
     // 模擬不同次數的情況
-    for (int i = 5; i <= 6; i++) {
+    for (int i = 6; i <= 6; i++) {
         for (int simulationTimes = 1000; simulationTimes <= 5000; simulationTimes += 1000) {
             totalTime = 0;
             for (int j = 0; j < gameTimes; j++) {
