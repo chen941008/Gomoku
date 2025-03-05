@@ -232,25 +232,25 @@ int MCTS::playout(Node* node) {
 
         // 當落子觸及目前邊界時，拓展候選範圍
         // 若落子在 x 軸邊界，則更新該行並嘗試加入新落子點
-        if (move.x == minRow) {
-            minRow = move.x;
+        if (move.x == minRow && minRow != 0) {
+            minRow--;
             for (int col = minCol; col <= maxCol; col++) {
                 addPossibleMove(minRow, col);
             }
-        } else if (move.x == maxRow) {
-            maxRow = move.x;
+        } else if (move.x == maxRow && maxRow != BOARD_SIZE - 1) {
+            maxRow++;
             for (int col = minCol; col <= maxCol; col++) {
                 addPossibleMove(maxRow, col);
             }
         }
         // 同理，對 y 軸
-        if (move.y == minCol) {
-            minCol = move.y;
+        if (move.y == minCol && minCol != 0) {
+            minCol--;
             for (int row = minRow; row <= maxRow; row++) {
                 addPossibleMove(row, minCol);
             }
-        } else if (move.y == maxCol) {
-            maxCol = move.y;
+        } else if (move.y == maxCol && maxCol != BOARD_SIZE - 1) {
+            maxCol++;
             for (int row = minRow; row <= maxRow; row++) {
                 addPossibleMove(row, maxCol);
             }
