@@ -9,11 +9,25 @@
 #include "Game.hpp"
 using std::array;
 #define BITBOARD_COUNT ((BOARD_SIZE * BOARD_SIZE + 63) / 64)  // 計算需要多少個 uint64_t 來表示整個棋盤
-const int MAX_CHILDREN = 225;                                 ///< 每個節點最多的子節點數量（對應 15x15 棋盤）
+constexpr int MAX_CHILDREN = 225;                             ///< 每個節點最多的子節點數量（對應 15x15 棋盤）
+
 struct Position {
     int x;
     int y;
 };
+// 使用 constexpr 确保编译期计算
+constexpr std::array<Position, MAX_CHILDREN> createLookupTable() {
+    std::array<Position, MAX_CHILDREN> table{};
+    for (int index = 0; index < MAX_CHILDREN; ++index) {
+        table[index].x = index / BOARD_SIZE;
+        table[index].y = index % BOARD_SIZE;
+    }
+    return table;
+}
+
+// 全局常量查找表
+constexpr std::array<Position, MAX_CHILDREN> globalLookupTable = createLookupTable();
+
 inline void setBit(uint64_t* bitboard, Position lastMove) {
     int pos = lastMove.x * BOARD_SIZE + lastMove.y;
     bitboard[pos >> 6] |= 1ULL << (pos & 63);

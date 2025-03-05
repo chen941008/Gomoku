@@ -17,9 +17,9 @@ int main() {
         Game::startGame();
     }
     /*
-    int gameTimes = 1;
+    int gameTimes = 5;
     long long totalTime = 0;
-    ofstream outputFile("bitboard_main_thread.csv");
+    ofstream outputFile("bitboard_64bitsV2.csv");
     if (!outputFile.is_open()) {
         cerr << "Error: Unable to open output file!" << endl;
         return 1;

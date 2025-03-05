@@ -18,7 +18,7 @@ void Game::startGame() {
     int playerOrder, currentOrder = 0, aiMode, iterationTimes, simulationTimes;
     cout << "Input stimulation times." << endl;
     cin >> simulationTimes;
-    MCTS ai(simulationTimes, 5);
+    MCTS ai(simulationTimes, 6);
     ai.expansion(currentNode);
     cout << "Choose AI simulation mode: 1 = fixed simulation times, 2 = "
             "variable simulation times"
@@ -44,8 +44,12 @@ void Game::startGame() {
         cout << "Please input 1 or 2" << endl;
     }
     // 用 bitboard 表示棋盤，初始皆為 0
-    uint64_t boardBlack[BITBOARD_COUNT] = {0};
-    uint64_t boardWhite[BITBOARD_COUNT] = {0};
+    uint64_t boardBlack[BITBOARD_COUNT];
+    uint64_t boardWhite[BITBOARD_COUNT];
+    memset(boardBlack, 0, sizeof(boardBlack));
+    memset(boardWhite, 0, sizeof(boardWhite));
+    boardBlack[3] = 0xFFFFFFFE00000000;  // 沒用到的bit直接賦值為1=佔據
+    boardWhite[3] = 0xFFFFFFFE00000000;  // 沒用到的bit直接賦值為1=佔據
     cout << "Choose first or second player, input 1 or 2" << endl;
     while (true) {  // 選擇先手或後手，防白痴crash程式
         cin >> playerOrder;
@@ -283,17 +287,13 @@ bool Game::checkDirection(Position lastMove, Position direction, uint64_t* board
 bool Game::checkWin(Position lastMove, uint64_t boardBlack[BITBOARD_COUNT], uint64_t boardWhite[BITBOARD_COUNT],
                     bool isBlackTurn) {
     static const Position directions[4] = {{1, 0}, {0, 1}, {1, 1}, {1, -1}};
-    if (isBlackTurn) {
-        return checkDirection(lastMove, directions[0], boardBlack) ||  // 水平
-               checkDirection(lastMove, directions[1], boardBlack) ||  // 垂直
-               checkDirection(lastMove, directions[2], boardBlack) ||  // 斜對角
-               checkDirection(lastMove, directions[3], boardBlack);    // 斜對角 /
-    } else {
-        return checkDirection(lastMove, directions[0], boardWhite) ||  // 水平
-               checkDirection(lastMove, directions[1], boardWhite) ||  // 垂直
-               checkDirection(lastMove, directions[2], boardWhite) ||  // 斜對角
-               checkDirection(lastMove, directions[3], boardWhite);    // 斜對角 /
-    }
+
+    uint64_t* targetBoard = isBlackTurn ? boardBlack : boardWhite;
+
+    return checkDirection(lastMove, directions[0], targetBoard) ||  // 水平
+           checkDirection(lastMove, directions[1], targetBoard) ||  // 垂直
+           checkDirection(lastMove, directions[2], targetBoard) ||  // 斜對角（\）
+           checkDirection(lastMove, directions[3], targetBoard);    // 斜對角（/）
 }
 void Game::showEachNodeInformation(Node* currentNode) {
     for (int i = 0; i < MAX_CHILDREN && currentNode->children[i] != nullptr; i++) {

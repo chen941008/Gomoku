@@ -83,6 +83,7 @@ Node* MCTS::selection(Node* node) {
 Node* MCTS::expansion(Node* node) {
     // 建立所有已佔據位置的合併位棋盤
     uint64_t combined[BITBOARD_COUNT];
+    static constexpr uint64_t LAST_BOARD_MASK = 0xFFFFFFFE00000000;
     for (int i = 0; i < BITBOARD_COUNT; i++) {
         combined[i] = node->boardBlack[i] | node->boardWhite[i];
     }
@@ -93,17 +94,18 @@ Node* MCTS::expansion(Node* node) {
     // 對於每個已佔據的位置，標記其空白的鄰居
     for (int i = 0; i < BITBOARD_COUNT; i++) {
         uint64_t occupied = combined[i];
+        if (__builtin_popcountll(occupied) == 0) continue;
         while (occupied) {
             // 跳過你提到的特殊情況
-            if (i == 3 && occupied == 0xFFFFFFFE00000000) {
+            if (i == 3 && occupied == LAST_BOARD_MASK) {
                 break;
             }
 
             // 找到最低位的 1
             int pos = __builtin_ctzll(occupied);
             int globalPos = pos + i * 64;
-            int x = globalPos / BOARD_SIZE;
-            int y = globalPos % BOARD_SIZE;
+            int x = globalLookupTable[globalPos].x;
+            int y = globalLookupTable[globalPos].y;
 
             // 檢查相鄰位置
             for (int dx = -1; dx <= 1; dx++) {
@@ -133,8 +135,8 @@ Node* MCTS::expansion(Node* node) {
         while (expandPositions) {
             int pos = __builtin_ctzll(expandPositions);
             int globalPos = pos + i * 64;
-            int x = globalPos / BOARD_SIZE;
-            int y = globalPos % BOARD_SIZE;
+            int x = globalLookupTable[globalPos].x;
+            int y = globalLookupTable[globalPos].y;
 
             node->children[index++] = new Node({x, y}, node);
 
@@ -205,7 +207,6 @@ int MCTS::playout(Node* node) {
     if (moveCount == 0) {
         return 0;
     }
-    int lowerBound = 0, upperBound = moveCount;
     const int MAX_DEEP = 50;
     for (int step = 0; step < moveCount && step < MAX_DEEP; step++) {
         int randomIndex = step + (localRng() % (moveCount - step));
@@ -228,25 +229,25 @@ int MCTS::playout(Node* node) {
 
         // 基於最後一次移動添加新的可能移動
         // 當 move 在 x 軸觸碰邊界時
-        if (move.x == minRow) {
-            minRow = move.x;
+        if (move.x == minRow && minRow != 0) {
+            minRow--;
             for (int col = minCol; col <= maxCol; col++) {
                 addPossibleMove(minRow, col);
             }
-        } else if (move.x == maxRow) {
-            maxRow = move.x;
+        } else if (move.x == maxRow && maxRow != BOARD_SIZE - 1) {
+            maxRow++;
             for (int col = minCol; col <= maxCol; col++) {
                 addPossibleMove(maxRow, col);
             }
         }
         // 當 move 在 y 軸觸碰邊界時
-        if (move.y == minCol) {
-            minCol = move.y;
+        if (move.y == minCol && minCol != 0) {
+            minCol--;
             for (int row = minRow; row <= maxRow; row++) {
                 addPossibleMove(row, minCol);
             }
-        } else if (move.y == maxCol) {
-            maxCol = move.y;
+        } else if (move.y == maxCol && maxCol != BOARD_SIZE - 1) {
+            maxCol++;
             for (int row = minRow; row <= maxRow; row++) {
                 addPossibleMove(row, maxCol);
             }
