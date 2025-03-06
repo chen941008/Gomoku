@@ -47,7 +47,7 @@ int MCTS::run(Node* root, int iterations) {
             backpropagation(selectedNode, root->parent, selectedNode->isBlackTurn, 1);
             continue;
         }
-        if (selectedNode->visits == 0) {
+        if (selectedNode->visits == 0 || selectedNode->children[0] == nullptr) {
             selectedNode = expansion(selectedNode);
         }
         double playoutResult = parallelPlayouts(numThreads, simulationTimes, selectedNode);
