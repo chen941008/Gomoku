@@ -82,6 +82,11 @@ Node* MCTS::selection(Node* node) {
     }
 }
 Node* MCTS::expansion(Node* node) {
+    // 0. 特殊情況：空棋盤，下在正中間(7, 7)
+    if (node->lastMove.x == -1 && node->lastMove.y == -1) {
+        node->children[0] = new Node({7, 7}, node);
+        return node->children[0];
+    }
     // 1. 為每一行建立 15-bit 的 occupancy 掩碼
     //    其中 bit i (0 <= i < BOARD_SIZE) 為 1 表示該行第 i 個位置（最左邊為 i=0，最右邊為 i=BOARD_SIZE-1）已落子。
     uint16_t occupancy[BOARD_SIZE] = {0};
