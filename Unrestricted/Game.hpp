@@ -1,6 +1,13 @@
 #ifndef GAME_HPP
 #define GAME_HPP
 #include <stdint.h>
+#define RED "\033[31;1m"      // 亮紅色
+#define GREEN "\033[32;1m"    // 亮綠色
+#define YELLOW "\033[33;1m"   // 亮黃色
+#define BLUE "\033[34;1m"     // 亮藍色
+#define MAGENTA "\033[35;1m"  // 亮洋紅色
+#define CYAN "\033[36;1m"     // 亮青色
+#define DEFAULT "\033[0m"     // 重置為預設值
 const int BOARD_SIZE = 15;
 const int CHECKWIN_THRESHOLD = 4;
 struct Node;
@@ -38,7 +45,7 @@ class Game {
      *
      * @param board 棋盤的二維陣列表示
      */
-    static void printBoard(uint32_t rowBoard[BOARD_SIZE]);
+    static void printBoard(uint32_t rowBoard[BOARD_SIZE], Position lastMove);
     /**
      * @brief 遞迴生成 Tic-Tac-Toe (井字棋) 的完整遊戲樹。
      *

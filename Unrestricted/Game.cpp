@@ -60,10 +60,10 @@ void Game::startGame() {
     while (true) {
         if (currentOrder == MAX_CHILDREN) {
             cout << "Draw" << endl;
-            printBoard(rowBoard);
+            printBoard(rowBoard, currentNode->lastMove);
             break;
         }
-        printBoard(rowBoard);
+        printBoard(rowBoard, currentNode->lastMove);
         if (currentOrder % 2 == playerOrder) {  // Player turn
             showEachNodeInformation(currentNode);
             cout << "Your turn" << endl;
@@ -85,7 +85,7 @@ void Game::startGame() {
             set_piece(X, Y, currentOrder % 2 == 0 ? BLACK : WHITE, rowBoard, colBoard);
             if (currentOrder >= CHECKWIN_THRESHOLD && checkWin({X, Y}, rowBoard, colBoard, currentOrder % 2 == 0)) {
                 cout << "You win" << endl;
-                printBoard(rowBoard);
+                printBoard(rowBoard, currentNode->lastMove);
                 break;
             }
             bool found = false;
@@ -141,7 +141,7 @@ void Game::startGame() {
             currentNode = bestChild;
             if (currentOrder >= CHECKWIN_THRESHOLD && checkWin(lastMove, rowBoard, colBoard, currentOrder % 2 == 0)) {
                 cout << "AI win" << endl;
-                printBoard(rowBoard);
+                printBoard(rowBoard, currentNode->lastMove);
                 break;
             }
         }
@@ -157,7 +157,7 @@ void Game::startGame() {
     delete root;
 }
 
-void Game::printBoard(uint32_t rowBoard[BOARD_SIZE]) {
+void Game::printBoard(uint32_t rowBoard[BOARD_SIZE], Position lastMove) {
     cout << endl;
 
     // 印出上方的欄位標題（0 ~ BOARD_SIZE-1）
@@ -195,9 +195,15 @@ void Game::printBoard(uint32_t rowBoard[BOARD_SIZE]) {
             // }
             uint8_t cell = get_piece(rowBoard[i], j);
             if (cell == BLACK) {
-                cout << " X ";
+                if (i == lastMove.x && j == lastMove.y)
+                    cout << RED << " X " << DEFAULT;
+                else
+                    cout << YELLOW << " X " << DEFAULT;
             } else if (cell == WHITE) {
-                cout << " O ";
+                if (i == lastMove.x && j == lastMove.y)
+                    cout << RED << " O " << DEFAULT;
+                else
+                    cout << CYAN << " O " << DEFAULT;
             } else {
                 cout << "   ";
             }
