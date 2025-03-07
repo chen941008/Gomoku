@@ -7,6 +7,13 @@
 
 #include "MCTS.hpp"
 #include "Node.hpp"
+#define RED "\033[31;1m"      // 亮紅色
+#define GREEN "\033[32;1m"    // 亮綠色
+#define YELLOW "\033[33;1m"   // 亮黃色
+#define BLUE "\033[34;1m"     // 亮藍色
+#define MAGENTA "\033[35;1m"  // 亮洋紅色
+#define CYAN "\033[36;1m"     // 亮青色
+#define DEFAULT "\033[0m"     // 重置為預設
 
 // Function declaration for expansion
 
@@ -62,10 +69,10 @@ void Game::startGame() {
     while (true) {
         if (currentOrder == MAX_CHILDREN) {
             cout << "Draw" << endl;
-            printBoard(boardBlack, boardWhite);
+            printBoard(boardBlack, boardWhite, currentNode->lastMove);
             break;
         }
-        printBoard(boardBlack, boardWhite);
+        printBoard(boardBlack, boardWhite, currentNode->lastMove);
         if (currentOrder % 2 == playerOrder) {  // Player turn
             showEachNodeInformation(currentNode);
             cout << "Your turn" << endl;
@@ -91,7 +98,7 @@ void Game::startGame() {
             }
             if (currentOrder >= CHECKWIN_THRESHOLD && checkWin({X, Y}, boardBlack, boardWhite, currentOrder % 2 == 0)) {
                 cout << "You win" << endl;
-                printBoard(boardBlack, boardWhite);
+                printBoard(boardBlack, boardWhite, currentNode->lastMove);
                 break;
             }
             bool found = false;
@@ -152,7 +159,7 @@ void Game::startGame() {
             if (currentOrder >= CHECKWIN_THRESHOLD &&
                 checkWin(lastMove, boardBlack, boardWhite, currentOrder % 2 == 0)) {
                 cout << "AI win" << endl;
-                printBoard(boardBlack, boardWhite);
+                printBoard(boardBlack, boardWhite, currentNode->lastMove);
                 break;
             }
         }
@@ -168,7 +175,7 @@ void Game::startGame() {
     delete root;
 }
 
-void Game::printBoard(uint64_t* boardBlack, uint64_t* boardWhite) {
+void Game::printBoard(uint64_t* boardBlack, uint64_t* boardWhite, Position lastMove) {
     cout << endl;
 
     // 印出上方的欄位標題（0 ~ BOARD_SIZE-1）
@@ -200,9 +207,17 @@ void Game::printBoard(uint64_t* boardBlack, uint64_t* boardWhite) {
         // 印出該行的每個棋子
         for (int j = 0; j < BOARD_SIZE; j++) {
             if (getBit(boardBlack, {i, j})) {
-                cout << " X ";
+                if (i == lastMove.x && j == lastMove.y) {
+                    cout << RED << " X " << DEFAULT;
+                } else {
+                    cout << YELLOW << " X " << DEFAULT;
+                }
             } else if (getBit(boardWhite, {i, j})) {
-                cout << " O ";
+                if (i == lastMove.x && j == lastMove.y) {
+                    cout << RED << " O " << DEFAULT;
+                } else {
+                    cout << CYAN << " O " << DEFAULT;
+                }
             } else {
                 cout << "   ";
             }

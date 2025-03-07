@@ -33,7 +33,7 @@ class Game {
      *
      * @param board 棋盤的二維陣列表示
      */
-    static void printBoard(uint64_t* boardBlack, uint64_t* boardWhite);
+    static void printBoard(uint64_t* boardBlack, uint64_t* boardWhite, Position lastMove);
     /**
      * @brief 遞迴生成 Tic-Tac-Toe (井字棋) 的完整遊戲樹。
      *
