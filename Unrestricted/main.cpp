@@ -9,6 +9,7 @@
 
 using namespace std;
 int main() {
+    /*
     cout << "Welcome to Gomoku" << endl;
     int gameTimes;
     cout << "Input how many game you want to play." << endl;
@@ -16,16 +17,16 @@ int main() {
     for (int i = 0; i < gameTimes; i++) {
         Game::startGame();
     }
-    /*
-    int gameTimes = 5;
+    */
+    int gameTimes = 30;
     long long totalTime = 0;
-    ofstream outputFile("bitboard_64bitsV3.csv");
+    ofstream outputFile("bitboard_64bits.csv");
     if (!outputFile.is_open()) {
         cerr << "Error: Unable to open output file!" << endl;
         return 1;
     }
     // 寫入 CSV 標題行
-    outputFile << "Core,SimulationTimes,AverageTime (ms)" << endl;
+    outputFile << "SimulationTimes,AverageTime (ms)" << endl;
     // 模擬不同次數的情況
     for (int simulationTimes = 1000; simulationTimes <= 10000; simulationTimes += 1000) {
         totalTime = 0;
@@ -45,6 +46,5 @@ int main() {
     }
     // 關閉檔案
     outputFile.close();
-    */
     return 0;
 }

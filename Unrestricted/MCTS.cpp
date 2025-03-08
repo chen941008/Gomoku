@@ -36,9 +36,9 @@ MCTS::MCTS(int simTimes, int numThreads)
 int MCTS::run(Node* root, int iterations) {
     auto start = std::chrono::high_resolution_clock::now();
     for (int i = 1; i <= iterations; i++) {
-        if (i % 10000 == 0) {
-            cout << "MCTS iteration: " << i << endl << "別急，我在思考中..." << endl;
-        }
+        // if (i % 10000 == 0) {
+        //     cout << "MCTS iteration: " << i << endl << "別急，我在思考中..." << endl;
+        // }
         Node* selectedNode = selection(root);
         if (selectedNode->isWin) {
             backpropagation(selectedNode, root->parent, selectedNode->isBlackTurn, 1);
