@@ -154,6 +154,7 @@ void MCTS::backpropagation(Node* node, Node* endNode, bool isXTurn, double win) 
 int MCTS::playout(Node* node) {
     bool startTurn = node->isBlackTurn;
     bool currentTurn = startTurn;
+    bool occupied[BOARD_SIZE][BOARD_SIZE] = {false};
     thread_local std::mt19937 localRng(std::random_device{}());
 
     // 建立局部棋盤複本（注意：我們的棋盤是 15 行，每行有 16 格，其中最後一格作為對齊用，真正有效區域為 15*15）
@@ -170,6 +171,7 @@ int MCTS::playout(Node* node) {
         for (int j = 0; j < BOARD_SIZE; j++) {
             uint8_t cell = get_piece(i, j, boardRow);
             if (cell == BLACK || cell == WHITE) {
+                occupied[i][j] = true;
                 minRow = std::min(minRow, i);
                 maxRow = std::max(maxRow, i);
                 minCol = std::min(minCol, j);
@@ -198,10 +200,9 @@ int MCTS::playout(Node* node) {
     bool moveUsed[BOARD_SIZE * BOARD_SIZE] = {false};
     auto addPossibleMove = [&](int x, int y) {
         if (x < 0 || x >= BOARD_SIZE || y < 0 || y >= BOARD_SIZE) return;
-        int key = x * BOARD_SIZE + y;
-        if (!moveUsed[key] && (get_piece(x, y, boardRow) == EMPTY)) {
+        if (!occupied[x][y]) {
+            occupied[x][y] = true;
             possibleMoves[moveCount++] = {x, y};
-            moveUsed[key] = true;
         }
     };
     for (int i = minRow; i <= maxRow; i++) {

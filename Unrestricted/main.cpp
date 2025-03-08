@@ -10,6 +10,7 @@
 using namespace std;
 int main() {
     initializePrecomputed();
+    /*
     cout << "Welcome to Gomoku" << endl;
     int gameTimes;
     cout << "Input how many game you want to play." << endl;
@@ -17,8 +18,8 @@ int main() {
     for (int i = 0; i < gameTimes; i++) {
         Game::startGame();
     }
-    /*
-    int gameTimes = 30;
+    */
+    int gameTimes = 5;
     long long totalTime = 0;
     ofstream outputFile("row_col.csv");
     if (!outputFile.is_open()) {
@@ -27,6 +28,7 @@ int main() {
     }
     // 寫入 CSV 標題行
     outputFile << "SimulationTimes,AverageTime (ms)" << endl;
+
     for (int simulationTimes = 1000; simulationTimes <= 10000; simulationTimes += 1000) {
         totalTime = 0;
         for (int i = 0; i < gameTimes; i++) {
@@ -45,6 +47,5 @@ int main() {
     }
     // 關閉檔案
     outputFile.close();
-    */
     return 0;
 }
